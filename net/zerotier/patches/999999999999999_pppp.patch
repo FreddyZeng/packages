@@ -396,7 +396,7 @@ index f9d0548..5661fc3 100644
  	ZT_Node_Callbacks _cb;
  
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..de5dc6e 100644
+index 594ff02..24f3cc0 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -2572,6 +2572,19 @@ public:
@@ -410,7 +410,7 @@ index 594ff02..de5dc6e 100644
 +				const std::string hex = OSUtils::jsonString(publicKeyString.value(), "");
 +                C25519::Public key;
 +				if (ZeroTier_ParseHexPubKey(hex, key)) {
-+					_allowedPeerKeys.insert(key);
++                    _node->_allowedPeerKeys.insert(key);
 +				} else {
 +					fprintf(stderr, "Invalid public key hex: %s\n", hex.c_str());
 +				}
