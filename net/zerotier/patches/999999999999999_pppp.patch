@@ -1,27 +1,70 @@
 diff --git a/node/C25519.hpp b/node/C25519.hpp
-index 410ad72..6af69f5 100644
+index 410ad72..6f6b8a6 100644
 --- a/node/C25519.hpp
 +++ b/node/C25519.hpp
-@@ -14,6 +14,10 @@
+@@ -14,21 +14,35 @@
  #ifndef ZT_C25519_HPP
  #define ZT_C25519_HPP
  
+-#include "Utils.hpp"
 +#include <array>             // for std::array
 +#include <unordered_set>     // for std::unordered_set
 +#include <cstdint>           // for uint8_t, if not already included
-+
- #include "Utils.hpp"
  
- namespace ZeroTier {
-@@ -22,6 +26,8 @@ namespace ZeroTier {
+-namespace ZeroTier {
++#include <cstring>      // for memcmp, memcpy
++#include <string_view>  // for std::string_view
++#include <functional>   // for std::hash
++
++#include "Utils.hpp"
+ 
+ #define ZT_C25519_PUBLIC_KEY_LEN 64
  #define ZT_C25519_PRIVATE_KEY_LEN 64
  #define ZT_C25519_SIGNATURE_LEN 96
  
-+using PubKeyBin = std::array<uint8_t, ZT_C25519_PUBLIC_KEY_LEN>;
++
++namespace ZeroTier {
 +
  /**
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
+ class C25519
+ {
+ public:
+-	struct Public { uint8_t data[ZT_C25519_PUBLIC_KEY_LEN]; };
++    struct Public {
++        uint8_t data[ZT_C25519_PUBLIC_KEY_LEN];
++        bool operator==(Public const &o) const noexcept {
++            return ::memcmp(data, o.data, ZT_C25519_PUBLIC_KEY_LEN) == 0;
++        }
++    };
+ 	struct Private { uint8_t data[ZT_C25519_PRIVATE_KEY_LEN]; };
+ 	struct Signature { uint8_t data[ZT_C25519_SIGNATURE_LEN]; };
+ 	struct Pair { Public pub; Private priv; };
+@@ -168,4 +182,23 @@ private:
+ 
+ } // namespace ZeroTier
+ 
++
++// Specialize std::hash for ZeroTier::C25519::Public
++namespace std {
++
++template<>
++struct hash<ZeroTier::C25519::Public> {
++    size_t operator()(ZeroTier::C25519::Public const &p) const noexcept {
++        // Hash the raw bytes via string_view
++        return std::hash<std::string_view>()(
++            std::string_view(
++                reinterpret_cast<char const*>(p.data),
++                ZT_C25519_PUBLIC_KEY_LEN
++            )
++        );
++    }
++};
++
++} // namespace std
++
+ #endif
 diff --git a/node/Constants.hpp b/node/Constants.hpp
 index 95f093b..b347c9f 100644
 --- a/node/Constants.hpp
@@ -168,7 +211,7 @@ index 95f093b..b347c9f 100644
  /**
   * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
 diff --git a/node/Identity.cpp b/node/Identity.cpp
-index f47de79..71eb0c8 100644
+index f47de79..d09078e 100644
 --- a/node/Identity.cpp
 +++ b/node/Identity.cpp
 @@ -90,7 +90,7 @@ void Identity::generate()
@@ -180,12 +223,12 @@ index f47de79..71eb0c8 100644
  
  	_publicKey = kp.pub;
  	if (!_privateKey) {
-@@ -124,6 +124,49 @@ bool Identity::locallyValidate() const
+@@ -124,6 +124,45 @@ bool Identity::locallyValidate() const
  		(digest[63] == addrb[4]));
  }
  
 +// Updated locallyValidate function in Identity.cpp
-+bool Identity::locallyValidateWithAllowedPeerKeys(const std::unordered_set<PubKeyBin>& allowedPeerKeys) const
++bool Identity::locallyValidateWithAllowedPeerKeys(const std::unordered_set<C25519::Public>& allowedPeerKeys) const
 +{
 +	// Disallow reserved addresses
 +	if (_address.isReserved()) {
@@ -214,11 +257,7 @@ index f47de79..71eb0c8 100644
 +		return false;
 +	}
 +
-+	// Check that this public key is in the allowed set
-+	PubKeyBin key;
-+	// Copy the 32-byte public key into our PubKeyBin
-+	::memcpy(keyBin.data(), _publicKey.data, ZT_C25519_PUBLIC_KEY_LEN);
-+	if (allowedPeerKeys.find(key) == allowedPeerKeys.end()) {
++	if (allowedPeerKeys.find(_publicKey) == allowedPeerKeys.end()) {
 +		// Not in whitelist
 +		return false;
 +	}
@@ -230,12 +269,12 @@ index f47de79..71eb0c8 100644
  char *Identity::toString(bool includePrivate,char buf[ZT_IDENTITY_STRING_BUFFER_LENGTH]) const
  {
  	char *p = buf;
-@@ -201,4 +244,13 @@ bool Identity::fromString(const char *str)
+@@ -201,4 +240,13 @@ bool Identity::fromString(const char *str)
  	return true;
  }
  
 +// 新增一个自定义判断函数
-+static bool customDigestCheck(const unsigned char digest[64]) {
++bool Identity:: customDigestCheck(const unsigned char digest[64]) {
 +	// digest[0] 是 SHA-512 输出的第 1 字节，digest[55] 是第 56 字节
 +	return digest[55] == 0x12
 +		&& digest[56] == 0x34
@@ -245,7 +284,7 @@ index f47de79..71eb0c8 100644
 +
  } // namespace ZeroTier
 diff --git a/node/Identity.hpp b/node/Identity.hpp
-index b7580a8..4b20946 100644
+index b7580a8..0f6990b 100644
 --- a/node/Identity.hpp
 +++ b/node/Identity.hpp
 @@ -105,6 +105,9 @@ public:
@@ -253,11 +292,21 @@ index b7580a8..4b20946 100644
  	 */
  	bool locallyValidate() const;
 +	
-+	bool locallyValidateWithAllowedPeerKeys(const std::unordered_set<PubKeyBin>& allowedPeerKeys) const;
++	bool locallyValidateWithAllowedPeerKeys(const std::unordered_set<C25519::Public>& allowedPeerKeys) const;
 +
  
  	/**
  	 * @return True if this identity contains a private key
+@@ -288,6 +291,9 @@ public:
+ 	 * @return True if deserialization appears successful
+ 	 */
+ 	bool fromString(const char *str);
++    
++    
++    bool customDigestCheck(const unsigned char digest[64]);
+ 
+ 	/**
+ 	 * @return C25519 public key
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
 index 2537c0f..75a576b 100644
 --- a/node/IncomingPacket.cpp
@@ -276,7 +325,7 @@ index 2537c0f..75a576b 100644
  
  		// Continue at // VALID
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..2a06715 100644
+index f9d0548..5661fc3 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -36,6 +36,7 @@
@@ -287,7 +336,7 @@ index f9d0548..2a06715 100644
  
  // Bit mask for "expecting reply" hash
  #define ZT_EXPECTING_REPLIES_BUCKET_MASK1 255
-@@ -43,6 +44,51 @@
+@@ -43,6 +44,47 @@
  
  namespace ZeroTier {
  
@@ -321,37 +370,33 @@ index f9d0548..2a06715 100644
 +	return true;
 +}
 +
-+// 专用：解析 128 字符 hex 公钥到 PubKeyBin
-+static bool ZeroTier_ParseHexPubKey(const std::string &hex, PubKeyBin &pubKeyBin) {
-+	// hex 长度必须正好是公钥二进制长度的两倍
-+	if (hex.size() != ZT_C25519_PUBLIC_KEY_LEN * 2) {
-+		return false;
-+	}
-+	std::vector<uint8_t> buf;
-+	if (!ZeroTier_HexStringToBytes(hex, buf)) {
-+		return false;
-+	}
-+	std::copy(buf.begin(), buf.end(), pubKeyBin.begin());
-+	return true;
++// 专用：解析 128 字符 hex 公钥到 C25519::Public
++static bool ZeroTier_ParseHexPubKey(const std::string &hex, C25519::Public &pubKeyBin) {
++    if (hex.size() != ZT_C25519_PUBLIC_KEY_LEN * 2) return false;
++    std::vector<uint8_t> buf;
++    if (!ZeroTier_HexStringToBytes(hex, buf)) return false;
++    // 直接 memcpy 最清晰
++    std::memcpy(pubKeyBin.data, buf.data(), ZT_C25519_PUBLIC_KEY_LEN);
++    return true;
 +}
 +
 +
  class World;
  
  /**
-@@ -289,6 +335,10 @@ public:
+@@ -289,6 +331,10 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
 +
 +	// 在 Node 类的 public 或 protected 区域，添加：
-+	std::unordered_set<PubKeyBin> _allowedPeerKeys;
++	std::unordered_set<C25519::Public> _allowedPeerKeys;
 +
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..04b3ea7 100644
+index 594ff02..de5dc6e 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -2572,6 +2572,19 @@ public:
@@ -363,7 +408,7 @@ index 594ff02..04b3ea7 100644
 +			json &localPublicKeyStrings = settings["localPublicKeyStrings"];
 +			for (json::iterator publicKeyString = localPublicKeyStrings.begin(); publicKeyString != localPublicKeyStrings.end(); ++publicKeyString) {
 +				const std::string hex = OSUtils::jsonString(publicKeyString.value(), "");
-+				PubKeyBin key;
++                C25519::Public key;
 +				if (ZeroTier_ParseHexPubKey(hex, key)) {
 +					_allowedPeerKeys.insert(key);
 +				} else {
