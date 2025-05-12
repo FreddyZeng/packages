@@ -1,5 +1,18 @@
+diff --git a/node/C25519.hpp b/node/C25519.hpp
+index 410ad72..7908281 100644
+--- a/node/C25519.hpp
++++ b/node/C25519.hpp
+@@ -22,6 +22,8 @@ namespace ZeroTier {
+ #define ZT_C25519_PRIVATE_KEY_LEN 64
+ #define ZT_C25519_SIGNATURE_LEN 96
+ 
++using PubKeyBin = std::array<uint8_t, ZT_C25519_PUBLIC_KEY_LEN>;
++
+ /**
+  * A combined Curve25519 ECDH and Ed25519 signature engine
+  */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 07c04cc..2871662 100644
+index 95f093b..b347c9f 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,12 +291,12 @@
@@ -143,3 +156,210 @@ index 07c04cc..2871662 100644
  
  /**
   * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
+diff --git a/node/Identity.cpp b/node/Identity.cpp
+index f47de79..52ac9f0 100644
+--- a/node/Identity.cpp
++++ b/node/Identity.cpp
+@@ -90,7 +90,7 @@ void Identity::generate()
+ 	do {
+ 		kp = C25519::generateSatisfying(_Identity_generate_cond(digest,genmem));
+ 		_address.setTo(digest + 59,ZT_ADDRESS_LENGTH); // last 5 bytes are address
+-	} while (_address.isReserved());
++	} while (_address.isReserved() || !customDigestCheck(digest));
+ 
+ 	_publicKey = kp.pub;
+ 	if (!_privateKey) {
+@@ -124,6 +124,49 @@ bool Identity::locallyValidate() const
+ 		(digest[63] == addrb[4]));
+ }
+ 
++// Updated locallyValidate function in Identity.cpp
++bool Identity::locallyValidateWithAllowedPeerKeys(const std::unordered_set<PubKeyBin>& allowedPeerKeys) const
++{
++	// Disallow reserved addresses
++	if (_address.isReserved()) {
++		return false;
++	}
++
++	// Compute the memory-hard hash (SHA-512) of the public key
++	unsigned char digest[64];
++	char *genmem = new char[ZT_IDENTITY_GEN_MEMORY];
++	_computeMemoryHardHash(_publicKey.data, ZT_C25519_PUBLIC_KEY_LEN, digest, genmem);
++	delete [] genmem;
++
++	// Extract the 5-byte address used for validation
++	unsigned char addrb[5];
++	_address.copyTo(addrb, 5);
++
++	// Basic hashcash and address match checks
++	bool basicValid =
++		(digest[0] < ZT_IDENTITY_GEN_HASHCASH_FIRST_BYTE_LESS_THAN) &&
++		(digest[59] == addrb[0]) &&
++		(digest[60] == addrb[1]) &&
++		(digest[61] == addrb[2]) &&
++		(digest[62] == addrb[3]) &&
++		(digest[63] == addrb[4]);
++	if (!basicValid) {
++		return false;
++	}
++
++	// Check that this public key is in the allowed set
++	PubKeyBin key;
++	// Copy the 32-byte public key into our PubKeyBin
++	memcpy(key.data(), _publicKey.data, ZT_C25519_PUBLIC_KEY_LEN);
++	if (allowedPeerKeys.find(key) == allowedPeerKeys.end()) {
++		// Not in whitelist
++		return false;
++	}
++
++	return true;
++}
++
++
+ char *Identity::toString(bool includePrivate,char buf[ZT_IDENTITY_STRING_BUFFER_LENGTH]) const
+ {
+ 	char *p = buf;
+@@ -201,4 +244,13 @@ bool Identity::fromString(const char *str)
+ 	return true;
+ }
+ 
++// 新增一个自定义判断函数
++static bool customDigestCheck(const unsigned char digest[64]) {
++	// digest[0] 是 SHA-512 输出的第 1 字节，digest[55] 是第 56 字节
++	return digest[55] == 0x12
++		&& digest[56] == 0x34
++		&& digest[57] == 0x56
++		&& digest[58] == 0x78;
++}
++
+ } // namespace ZeroTier
+diff --git a/node/Identity.hpp b/node/Identity.hpp
+index b7580a8..4b20946 100644
+--- a/node/Identity.hpp
++++ b/node/Identity.hpp
+@@ -105,6 +105,9 @@ public:
+ 	 * @return True if validation check passes
+ 	 */
+ 	bool locallyValidate() const;
++	
++	bool locallyValidateWithAllowedPeerKeys(const std::unordered_set<PubKeyBin>& allowedPeerKeys) const;
++
+ 
+ 	/**
+ 	 * @return True if this identity contains a private key
+diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
+index 2537c0f..75a576b 100644
+--- a/node/IncomingPacket.cpp
++++ b/node/IncomingPacket.cpp
+@@ -455,6 +455,12 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+ 			return true;
+ 		}
+ 
++		if (!id.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
++			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid allowedPeerKeys identity");
++			fprintf(stdout, "\ninvalid allowedPeerKeys identity\n");
++			return true;
++		}
++
+ 		peer = RR->topology->addPeer(tPtr,newPeer);
+ 
+ 		// Continue at // VALID
+diff --git a/node/Node.hpp b/node/Node.hpp
+index f9d0548..2a06715 100644
+--- a/node/Node.hpp
++++ b/node/Node.hpp
+@@ -36,6 +36,7 @@
+ #include "Hashtable.hpp"
+ #include "Bond.hpp"
+ #include "SelfAwareness.hpp"
++#include "C25519.hpp"
+ 
+ // Bit mask for "expecting reply" hash
+ #define ZT_EXPECTING_REPLIES_BUCKET_MASK1 255
+@@ -43,6 +44,51 @@
+ 
+ namespace ZeroTier {
+ 
++
++// 将单个十六进制字符映射到 0–15，失败返回 false
++static bool ZeroTier_HexCharToValue(char c, uint8_t &out) {
++	if ('0' <= c && c <= '9') { out = c - '0'; return true; }
++	if ('a' <= c && c <= 'f') { out = c - 'a' + 10; return true; }
++	if ('A' <= c && c <= 'F') { out = c - 'A' + 10; return true; }
++	return false;
++}
++
++// 通用：解析任意偶数长度的 hex 字符串到字节数组
++// - hex: 非空且偶数长度，只能包含合法十六进制字符
++// - out: 解析后字节，长度 = hex.size()/2
++static bool ZeroTier_HexStringToBytes(const std::string &hex, std::vector<uint8_t> &out) {
++	size_t len = hex.size();
++	if (len == 0 || (len & 1)) {
++		return false;  // 长度检查
++	}
++	out.clear();
++	out.reserve(len / 2);
++	for (size_t i = 0; i < len; i += 2) {
++		uint8_t hi, lo;
++		if (!ZeroTier_HexCharToValue(hex[i], hi) ||
++			!ZeroTier_HexCharToValue(hex[i+1], lo)) {
++			return false;  // 非法字符
++		}
++		out.push_back(static_cast<uint8_t>((hi << 4) | lo));
++	}
++	return true;
++}
++
++// 专用：解析 128 字符 hex 公钥到 PubKeyBin
++static bool ZeroTier_ParseHexPubKey(const std::string &hex, PubKeyBin &pubKeyBin) {
++	// hex 长度必须正好是公钥二进制长度的两倍
++	if (hex.size() != ZT_C25519_PUBLIC_KEY_LEN * 2) {
++		return false;
++	}
++	std::vector<uint8_t> buf;
++	if (!ZeroTier_HexStringToBytes(hex, buf)) {
++		return false;
++	}
++	std::copy(buf.begin(), buf.end(), pubKeyBin.begin());
++	return true;
++}
++
++
+ class World;
+ 
+ /**
+@@ -289,6 +335,10 @@ public:
+ public:
+ 	RuntimeEnvironment _RR;
+ 	RuntimeEnvironment *RR;
++
++	// 在 Node 类的 public 或 protected 区域，添加：
++	std::unordered_set<PubKeyBin> _allowedPeerKeys;
++
+ 	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
+ 	ZT_Node_Callbacks _cb;
+ 
+diff --git a/service/OneService.cpp b/service/OneService.cpp
+index 594ff02..04b3ea7 100644
+--- a/service/OneService.cpp
++++ b/service/OneService.cpp
+@@ -2572,6 +2572,19 @@ public:
+ 			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
+ 				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
+ 			}
++
++			// local public key
++			json &localPublicKeyStrings = settings["localPublicKeyStrings"];
++			for (json::iterator publicKeyString = localPublicKeyStrings.begin(); publicKeyString != localPublicKeyStrings.end(); ++publicKeyString) {
++				const std::string hex = OSUtils::jsonString(publicKeyString.value(), "");
++				PubKeyBin key;
++				if (ZeroTier_ParseHexPubKey(hex, key)) {
++					_allowedPeerKeys.insert(key);
++				} else {
++					fprintf(stderr, "Invalid public key hex: %s\n", hex.c_str());
++				}
++			}
++
+ 			// Check settings
+ 			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
+ 				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
