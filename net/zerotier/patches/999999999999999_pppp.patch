@@ -1,8 +1,19 @@
 diff --git a/node/C25519.hpp b/node/C25519.hpp
-index 410ad72..7908281 100644
+index 410ad72..6af69f5 100644
 --- a/node/C25519.hpp
 +++ b/node/C25519.hpp
-@@ -22,6 +22,8 @@ namespace ZeroTier {
+@@ -14,6 +14,10 @@
+ #ifndef ZT_C25519_HPP
+ #define ZT_C25519_HPP
+ 
++#include <array>             // for std::array
++#include <unordered_set>     // for std::unordered_set
++#include <cstdint>           // for uint8_t, if not already included
++
+ #include "Utils.hpp"
+ 
+ namespace ZeroTier {
+@@ -22,6 +26,8 @@ namespace ZeroTier {
  #define ZT_C25519_PRIVATE_KEY_LEN 64
  #define ZT_C25519_SIGNATURE_LEN 96
  
@@ -157,7 +168,7 @@ index 95f093b..b347c9f 100644
  /**
   * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
 diff --git a/node/Identity.cpp b/node/Identity.cpp
-index f47de79..52ac9f0 100644
+index f47de79..71eb0c8 100644
 --- a/node/Identity.cpp
 +++ b/node/Identity.cpp
 @@ -90,7 +90,7 @@ void Identity::generate()
@@ -206,7 +217,7 @@ index f47de79..52ac9f0 100644
 +	// Check that this public key is in the allowed set
 +	PubKeyBin key;
 +	// Copy the 32-byte public key into our PubKeyBin
-+	memcpy(key.data(), _publicKey.data, ZT_C25519_PUBLIC_KEY_LEN);
++	::memcpy(keyBin.data(), _publicKey.data, ZT_C25519_PUBLIC_KEY_LEN);
 +	if (allowedPeerKeys.find(key) == allowedPeerKeys.end()) {
 +		// Not in whitelist
 +		return false;
