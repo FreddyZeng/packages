@@ -1,5 +1,5 @@
 diff --git a/node/C25519.hpp b/node/C25519.hpp
-index 410ad72..6f6b8a6 100644
+index 410ad72..bfa9bb9 100644
 --- a/node/C25519.hpp
 +++ b/node/C25519.hpp
 @@ -14,21 +14,35 @@
@@ -12,8 +12,8 @@ index 410ad72..6f6b8a6 100644
 +#include <cstdint>           // for uint8_t, if not already included
  
 -namespace ZeroTier {
++#include <cstddef>
 +#include <cstring>      // for memcmp, memcpy
-+#include <string_view>  // for std::string_view
 +#include <functional>   // for std::hash
 +
 +#include "Utils.hpp"
@@ -41,28 +41,31 @@ index 410ad72..6f6b8a6 100644
  	struct Private { uint8_t data[ZT_C25519_PRIVATE_KEY_LEN]; };
  	struct Signature { uint8_t data[ZT_C25519_SIGNATURE_LEN]; };
  	struct Pair { Public pub; Private priv; };
-@@ -168,4 +182,23 @@ private:
+@@ -168,4 +182,26 @@ private:
  
  } // namespace ZeroTier
  
 +
-+// Specialize std::hash for ZeroTier::C25519::Public
++// Specialize std::hash for ZeroTier::C25519::Public using FNV-1a
 +namespace std {
 +
 +template<>
 +struct hash<ZeroTier::C25519::Public> {
 +    size_t operator()(ZeroTier::C25519::Public const &p) const noexcept {
-+        // Hash the raw bytes via string_view
-+        return std::hash<std::string_view>()(
-+            std::string_view(
-+                reinterpret_cast<char const*>(p.data),
-+                ZT_C25519_PUBLIC_KEY_LEN
-+            )
-+        );
++        // 64-bit FNV-1a hash
++        static const size_t FNV_offset_basis = 14695981039346656037ULL;
++        static const size_t FNV_prime = 1099511628211ULL;
++        size_t h = FNV_offset_basis;
++        for (size_t i = 0; i < ZT_C25519_PUBLIC_KEY_LEN; ++i) {
++            h ^= static_cast<size_t>(p.data[i]);
++            h *= FNV_prime;
++        }
++        return h;
 +    }
 +};
 +
 +} // namespace std
++
 +
  #endif
 diff --git a/node/Constants.hpp b/node/Constants.hpp
