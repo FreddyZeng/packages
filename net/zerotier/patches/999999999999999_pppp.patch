@@ -320,7 +320,7 @@ index b7580a8..53b01f4 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..fe9178b 100644
+index 2537c0f..56dcb8f 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -248,7 +248,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
@@ -436,7 +436,21 @@ index 2537c0f..fe9178b 100644
  		return true;
  	}
  
-@@ -602,7 +631,12 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -595,6 +624,13 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+ 			if (vProto < ZT_PROTO_VERSION_MIN) {
+ 				return true;
+ 			}
++			
++			char addressBuf[11];
++			
++			if (!peer->identity().locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
++				fprintf(stdout, "\n_doOK: VERB_HELLO invalid allowedPeerKeys identity %s\n", peer->address().toString(addressBuf));
++				break;
++			}
+ 
+ 			InetAddress externalSurfaceAddress;
+ 			unsigned int ptr = ZT_PROTO_VERB_HELLO__OK__IDX_REVISION + 2;
+@@ -602,7 +638,12 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  			// Get reported external surface address if present
  			if (ptr < size()) {
  				ptr += externalSurfaceAddress.deserialize(*this,ptr);
@@ -450,7 +464,7 @@ index 2537c0f..fe9178b 100644
  
  			// Handle planet or moon updates if present
  			if ((ptr + 2) <= size()) {
-@@ -628,13 +662,30 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -628,13 +669,30 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  
  			if ((externalSurfaceAddress)&&(hops() == 0)) {
  				RR->sa->iam(tPtr,peer->address(),_path->localSocket(),_path->address(),externalSurfaceAddress,RR->topology->isUpstream(peer->identity()),RR->node->now());
