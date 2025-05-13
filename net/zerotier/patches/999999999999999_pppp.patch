@@ -183,7 +183,7 @@ index 95f093b..b347c9f 100644
  /**
   * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
 diff --git a/node/Identity.cpp b/node/Identity.cpp
-index f47de79..23ee7cf 100644
+index f47de79..36ca150 100644
 --- a/node/Identity.cpp
 +++ b/node/Identity.cpp
 @@ -15,6 +15,7 @@
@@ -236,8 +236,8 @@ index f47de79..23ee7cf 100644
 +		(digest[63] == addrb[4]);
 +
 +	return basicValid;
- }
- 
++}
++
 +// Updated locallyValidate function in Identity.cpp
 +bool Identity::locallyValidateWithAllowedPeerKeys(const std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash>& allowedPeerKeys) const
 +{
@@ -270,7 +270,7 @@ index f47de79..23ee7cf 100644
 +
 +	if (allowedPeerKeys.empty()) {
 +		fprintf(stderr, "\nallowedPeerKeys is empty\n");
-+		return false;
++		return basicValid;
 +	}
 +
 +	PubKeyBin keyBin;
@@ -283,8 +283,8 @@ index f47de79..23ee7cf 100644
 +	}
 +
 +	return true;
-+}
-+
+ }
+ 
 +
  char *Identity::toString(bool includePrivate,char buf[ZT_IDENTITY_STRING_BUFFER_LENGTH]) const
  {
@@ -600,7 +600,7 @@ index 777a1e9..a25aefa 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
 diff --git a/node/SelfAwareness.cpp b/node/SelfAwareness.cpp
-index dab19c6..f11d61e 100644
+index dab19c6..c75b57d 100644
 --- a/node/SelfAwareness.cpp
 +++ b/node/SelfAwareness.cpp
 @@ -53,7 +53,7 @@ private:
@@ -608,7 +608,7 @@ index dab19c6..f11d61e 100644
  SelfAwareness::SelfAwareness(const RuntimeEnvironment *renv) :
  	RR(renv),
 -	_phy(128)
-+	_phy(1024)
++	_phy(256)
  {
  }
  
@@ -674,65 +674,10 @@ index fc272ce..d861845 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..971b560 100644
+index 594ff02..3962aee 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
-@@ -841,7 +841,7 @@ public:
- 	 * destructively with uPnP port mapping behavior in very weird buggy ways.
- 	 * It's only used if uPnP/NAT-PMP is enabled in this build.
- 	 */
--	unsigned int _ports[3];
-+	unsigned int _ports[10];
- 	Binder _binder;
- 
- 	// Time we last received a packet from a global address
-@@ -1104,6 +1104,10 @@ public:
- 					_ports[1] = _secondaryPort;
- 				} else {
- 					_ports[1] = _getRandomPort();
-+					_ports[3] = _getRandomPort();
-+					_ports[5] = _getRandomPort();
-+					_ports[7] = _getRandomPort();
-+					_ports[9] = _getRandomPort();
- 				}
- 			}
- #ifdef ZT_USE_MINIUPNPC
-@@ -1116,12 +1120,34 @@ public:
- 				} else {
- 					_ports[2] = _tertiaryPort = _getRandomPort();
- 				}
-+				
-+				_ports[4] = _getRandomPort();
-+				_ports[6] = _getRandomPort();
-+				_ports[8] = _getRandomPort();
- 
- 				if (_ports[2]) {
- 					char uniqueName[64];
- 					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[2]);
- 					_portMapper = new PortMapper(_ports[2],uniqueName);
- 				}
-+				
-+				if (_ports[4]) {
-+					char uniqueName[64];
-+					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[4]);
-+					_portMapper = new PortMapper(_ports[4],uniqueName);
-+				}
-+				
-+				if (_ports[6]) {
-+					char uniqueName[64];
-+					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[6]);
-+					_portMapper = new PortMapper(_ports[6],uniqueName);
-+				}
-+				
-+				if (_ports[8]) {
-+					char uniqueName[64];
-+					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[8]);
-+					_portMapper = new PortMapper(_ports[8],uniqueName);
-+				}
- 			}
- #endif
- 
-@@ -2572,6 +2598,32 @@ public:
+@@ -2572,6 +2572,32 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
