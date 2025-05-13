@@ -674,7 +674,7 @@ index fc272ce..d861845 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..a7c3fa2 100644
+index 594ff02..971b560 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -841,7 +841,7 @@ public:
@@ -751,7 +751,7 @@ index 594ff02..a7c3fa2 100644
 +					}
 +					std::string hex = elem.get<std::string>();
 +					ZeroTier::PubKeyBin key;
-+					if (ZeroTier_ParseHexPubKey(hex, key)) {
++					if (ZeroTier::ZeroTier_ParseHexPubKey(hex, key)) {
 +						_node->_allowedPeerKeys.insert(key);
 +						fprintf(stderr, "\n✔ loaded whitelist key: %s\n", hex.c_str());
 +					} else {
