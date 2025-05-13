@@ -320,7 +320,7 @@ index b7580a8..53b01f4 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..e7e1b1d 100644
+index 2537c0f..15172c5 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -248,7 +248,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
@@ -349,10 +349,10 @@ index 2537c0f..e7e1b1d 100644
  		return true;
  	}
  
++	char addressBuf[11];
  	SharedPtr<Peer> peer(RR->topology->getPeer(tPtr,id.address()));
  	if (peer) {
 +		
-+		char addressBuf[11];
 +        fprintf(stdout, "\nWe already have an identity with this address: %s\n", id.address().toString(addressBuf));
  		// We already have an identity with this address -- check for collisions
  		if (!alreadyAuthenticated) {
@@ -400,24 +400,24 @@ index 2537c0f..e7e1b1d 100644
  		SharedPtr<Peer> newPeer(new Peer(RR,RR->identity,id));
  		if (!dearmor(newPeer->key(), newPeer->aesKeysIfSupported())) {
  			RR->t->incomingPacketMessageAuthenticationFailure(tPtr,_path,pid,fromAddress,hops(),"invalid MAC");
-+            fprintf(stdout, "\ninvalid MAC\n");
++            fprintf(stdout, "\ninvalid MAC %s\n", id.address().toString(addressBuf));
  			return true;
  		}
  
  		// Check that identity's address is valid as per the derivation function
  		if (!id.locallyValidate()) {
  			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid identity");
-+            fprintf(stdout, "\ninvalid identity\n");
++            fprintf(stdout, "\ninvalid identity %s\n", , id.address().toString(addressBuf));
  			return true;
  		}
  
 +		if (!id.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
 +			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid allowedPeerKeys identity");
-+			fprintf(stdout, "\ninvalid allowedPeerKeys identity\n");
++			fprintf(stdout, "\ninvalid allowedPeerKeys identity %s\n", id.address().toString(addressBuf));
 +			return true;
 +		}
 +		
-+		fprintf(stdout, "\nadd peer\n");
++		fprintf(stdout, "\nadd peer %s\n", id.address().toString(addressBuf));
 +
  		peer = RR->topology->addPeer(tPtr,newPeer);
  
@@ -450,7 +450,7 @@ index 2537c0f..e7e1b1d 100644
  
  			// Handle planet or moon updates if present
  			if ((ptr + 2) <= size()) {
-@@ -628,7 +662,15 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -628,12 +662,24 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  
  			if ((externalSurfaceAddress)&&(hops() == 0)) {
  				RR->sa->iam(tPtr,peer->address(),_path->localSocket(),_path->address(),externalSurfaceAddress,RR->topology->isUpstream(peer->identity()),RR->node->now());
@@ -467,6 +467,15 @@ index 2537c0f..e7e1b1d 100644
  		}	break;
  
  		case Packet::VERB_WHOIS:
+ 			if (RR->topology->isUpstream(peer->identity())) {
+ 				const Identity id(*this,ZT_PROTO_VERB_WHOIS__OK__IDX_IDENTITY);
++				char addressBuf[11];
++				
++				fprintf(stdout, "\nVERB_WHOIS add addPeer address: %s\n", id.address().toString(addressBuf));
++				
+ 				RR->sw->doAnythingWaitingForPeer(tPtr,RR->topology->addPeer(tPtr,SharedPtr<Peer>(new Peer(RR,RR->identity,id))));
+ 			}
+ 			break;
 diff --git a/node/Node.hpp b/node/Node.hpp
 index f9d0548..7db18c6 100644
 --- a/node/Node.hpp
