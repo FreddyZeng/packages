@@ -320,7 +320,7 @@ index b7580a8..53b01f4 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..6803beb 100644
+index 2537c0f..fe9178b 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -248,7 +248,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
@@ -450,7 +450,7 @@ index 2537c0f..6803beb 100644
  
  			// Handle planet or moon updates if present
  			if ((ptr + 2) <= size()) {
-@@ -628,12 +662,24 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -628,13 +662,30 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  
  			if ((externalSurfaceAddress)&&(hops() == 0)) {
  				RR->sa->iam(tPtr,peer->address(),_path->localSocket(),_path->address(),externalSurfaceAddress,RR->topology->isUpstream(peer->identity()),RR->node->now());
@@ -471,11 +471,17 @@ index 2537c0f..6803beb 100644
  				const Identity id(*this,ZT_PROTO_VERB_WHOIS__OK__IDX_IDENTITY);
 +				char addressBuf[11];
 +				
-+				fprintf(stdout, "\nVERB_WHOIS add addPeer address: %s\n", id.address().toString(addressBuf));
-+				
++				if (!id.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
++					fprintf(stdout, "\n_doOK: VERB_WHOIS invalid allowedPeerKeys identity %s\n", id.address().toString(addressBuf));
++					break;
++				}
++
  				RR->sw->doAnythingWaitingForPeer(tPtr,RR->topology->addPeer(tPtr,SharedPtr<Peer>(new Peer(RR,RR->identity,id))));
++				
++				fprintf(stdout, "\n_doOK: VERB_WHOIS add addPeer address: %s\n", id.address().toString(addressBuf));
  			}
  			break;
+ 
 diff --git a/node/Node.hpp b/node/Node.hpp
 index f9d0548..7db18c6 100644
 --- a/node/Node.hpp
@@ -579,6 +585,19 @@ index 777a1e9..a25aefa 100644
  			SharedPtr<Peer> p(new Peer(renv,renv->identity,id));
  
  			p->_vProto = b.template at<uint16_t>(ptr);
+diff --git a/node/SelfAwareness.cpp b/node/SelfAwareness.cpp
+index dab19c6..f11d61e 100644
+--- a/node/SelfAwareness.cpp
++++ b/node/SelfAwareness.cpp
+@@ -53,7 +53,7 @@ private:
+ 
+ SelfAwareness::SelfAwareness(const RuntimeEnvironment *renv) :
+ 	RR(renv),
+-	_phy(128)
++	_phy(1024)
+ {
+ }
+ 
 diff --git a/node/Switch.cpp b/node/Switch.cpp
 index 7664f7a..bee4eff 100644
 --- a/node/Switch.cpp
@@ -595,7 +614,7 @@ index 7664f7a..bee4eff 100644
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
 diff --git a/node/Topology.cpp b/node/Topology.cpp
-index fc272ce..4952215 100644
+index fc272ce..d861845 100644
 --- a/node/Topology.cpp
 +++ b/node/Topology.cpp
 @@ -11,6 +11,7 @@
@@ -606,29 +625,100 @@ index fc272ce..4952215 100644
  #include "Constants.hpp"
  #include "Topology.hpp"
  #include "RuntimeEnvironment.hpp"
-@@ -398,6 +399,8 @@ void Topology::_memoizeUpstreams(void *tPtr)
+@@ -398,7 +399,16 @@ void Topology::_memoizeUpstreams(void *tPtr)
  			_upstreamAddresses.push_back(id.address());
  			SharedPtr<Peer> &hp = _peers[id.address()];
  			if (!hp) {
-+				char buf[11];
-+				fprintf(stdout, "\nadd peer memoizeUpstreams: %s\n", i->identity.address().toString(buf));
++				char addressBuf[11];
++
++				if (!i->identity.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
++					fprintf(stdout, "\n add peer memoizeUpstreams invalid allowedPeerKeys identity %s\n", i->identity.address().toString(addressBuf));
++					break;
++				}
++
  				hp = new Peer(RR,RR->identity,id);
++
++				fprintf(stdout, "\nadd peer memoizeUpstreams: %s\n", i->identity.address().toString(addressBuf));
  			}
  		}
-@@ -411,6 +414,8 @@ void Topology::_memoizeUpstreams(void *tPtr)
+ 	}
+@@ -411,7 +421,16 @@ void Topology::_memoizeUpstreams(void *tPtr)
  				_upstreamAddresses.push_back(i->identity.address());
  				SharedPtr<Peer> &hp = _peers[i->identity.address()];
  				if (!hp) {
-+					char buf[11];
-+					fprintf(stdout, "\nadd peer memoizeUpstreams: %s\n", i->identity.address().toString(buf));
++					char addressBuf[11];
++
++					if (!i->identity.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
++						fprintf(stdout, "\n add peer memoizeUpstreams invalid allowedPeerKeys identity %s\n", i->identity.address().toString(addressBuf));
++						break;
++					}
++
  					hp = new Peer(RR,RR->identity,i->identity);
++
++					fprintf(stdout, "\nadd peer memoizeUpstreams: %s\n", i->identity.address().toString(addressBuf));
  				}
  			}
+ 		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..8a2418f 100644
+index 594ff02..a7c3fa2 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
-@@ -2572,6 +2572,32 @@ public:
+@@ -841,7 +841,7 @@ public:
+ 	 * destructively with uPnP port mapping behavior in very weird buggy ways.
+ 	 * It's only used if uPnP/NAT-PMP is enabled in this build.
+ 	 */
+-	unsigned int _ports[3];
++	unsigned int _ports[10];
+ 	Binder _binder;
+ 
+ 	// Time we last received a packet from a global address
+@@ -1104,6 +1104,10 @@ public:
+ 					_ports[1] = _secondaryPort;
+ 				} else {
+ 					_ports[1] = _getRandomPort();
++					_ports[3] = _getRandomPort();
++					_ports[5] = _getRandomPort();
++					_ports[7] = _getRandomPort();
++					_ports[9] = _getRandomPort();
+ 				}
+ 			}
+ #ifdef ZT_USE_MINIUPNPC
+@@ -1116,12 +1120,34 @@ public:
+ 				} else {
+ 					_ports[2] = _tertiaryPort = _getRandomPort();
+ 				}
++				
++				_ports[4] = _getRandomPort();
++				_ports[6] = _getRandomPort();
++				_ports[8] = _getRandomPort();
+ 
+ 				if (_ports[2]) {
+ 					char uniqueName[64];
+ 					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[2]);
+ 					_portMapper = new PortMapper(_ports[2],uniqueName);
+ 				}
++				
++				if (_ports[4]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[4]);
++					_portMapper = new PortMapper(_ports[4],uniqueName);
++				}
++				
++				if (_ports[6]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[6]);
++					_portMapper = new PortMapper(_ports[6],uniqueName);
++				}
++				
++				if (_ports[8]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[8]);
++					_portMapper = new PortMapper(_ports[8],uniqueName);
++				}
+ 			}
+ #endif
+ 
+@@ -2572,6 +2598,32 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
