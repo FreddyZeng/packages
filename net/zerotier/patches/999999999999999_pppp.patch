@@ -320,7 +320,7 @@ index b7580a8..53b01f4 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..56dcb8f 100644
+index 2537c0f..127b42f 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -248,7 +248,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
@@ -445,7 +445,7 @@ index 2537c0f..56dcb8f 100644
 +			
 +			if (!peer->identity().locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
 +				fprintf(stdout, "\n_doOK: VERB_HELLO invalid allowedPeerKeys identity %s\n", peer->address().toString(addressBuf));
-+				break;
++				return true;
 +			}
  
  			InetAddress externalSurfaceAddress;
@@ -487,7 +487,7 @@ index 2537c0f..56dcb8f 100644
 +				
 +				if (!id.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys)) {
 +					fprintf(stdout, "\n_doOK: VERB_WHOIS invalid allowedPeerKeys identity %s\n", id.address().toString(addressBuf));
-+					break;
++					return;
 +				}
 +
  				RR->sw->doAnythingWaitingForPeer(tPtr,RR->topology->addPeer(tPtr,SharedPtr<Peer>(new Peer(RR,RR->identity,id))));
