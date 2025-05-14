@@ -322,7 +322,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..54b5a54 100644
+index 2537c0f..52b3aaf 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -337,12 +337,12 @@ index 2537c0f..54b5a54 100644
  				}
  			}
  
-+            if (!peer->identity().locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys, RR->node->_enableAllowedPeerKeys)) {
-+                RR->t->incomingPacketMessageAuthenticationFailure(tPtr,_path,packetId(),sourceAddress,hops(),"invalid allowedPeerKeys identity");
-+                peer->recordIncomingInvalidPacket(_path);
-+                fprintf(stdout, "\ntryDecode invalid allowedPeerKeys identity %s\n", peer->identity().address().toString(addressBuf));
-+                return true;
-+            }
++//            if (!peer->identity().locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys, RR->node->_enableAllowedPeerKeys)) {
++//                RR->t->incomingPacketMessageAuthenticationFailure(tPtr,_path,packetId(),sourceAddress,hops(),"invalid allowedPeerKeys identity");
++//                peer->recordIncomingInvalidPacket(_path);
++//                fprintf(stdout, "\ntryDecode invalid allowedPeerKeys identity %s\n", peer->identity().address().toString(addressBuf));
++//                return true;
++//            }
 +
  			if (!uncompress()) {
  				RR->t->incomingPacketInvalid(tPtr,_path,packetId(),sourceAddress,hops(),Packet::VERB_NOP,"LZ4 decompression failed");
