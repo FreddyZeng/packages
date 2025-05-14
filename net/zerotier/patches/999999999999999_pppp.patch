@@ -809,3 +809,16 @@ index 594ff02..37ebefa 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
+diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
+index 44bc5ea..cd8c630 100644
+--- a/tcp-proxy/tcp-proxy.cpp
++++ b/tcp-proxy/tcp-proxy.cpp
+@@ -46,7 +46,7 @@
+ #include "../node/Metrics.hpp"
+ 
+ #define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
+-#define ZT_TCP_PROXY_TCP_PORT 443
++#define ZT_TCP_PROXY_TCP_PORT 58443
+ 
+ using namespace ZeroTier;
+ 
