@@ -704,7 +704,7 @@ index fc272ce..34358a0 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..0dac4e2 100644
+index 594ff02..37ebefa 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -841,7 +841,7 @@ public:
@@ -804,7 +804,7 @@ index 594ff02..0dac4e2 100644
 +				fprintf(stderr, "\n✖ no valid localPublicKeyStrings array in settings\n");
 +			}
 +			int enableAllowedPeerKeys = settings.value("enableAllowedPeerKeys", 0);
-+			node->_enableAllowedPeerKeys = (enableAllowedPeerKeys != 0);
++			_node->_enableAllowedPeerKeys = (enableAllowedPeerKeys != 0);
 +
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
