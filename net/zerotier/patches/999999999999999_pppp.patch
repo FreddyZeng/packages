@@ -704,7 +704,7 @@ index fc272ce..34358a0 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..af09eab 100644
+index 594ff02..0dac4e2 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -841,7 +841,7 @@ public:
@@ -762,6 +762,18 @@ index 594ff02..af09eab 100644
  			}
  #endif
  
+@@ -1227,9 +1253,9 @@ public:
+ 						}
+ 					}
+ 
+-					unsigned int p[3];
++					unsigned int p[10];
+ 					unsigned int pc = 0;
+-					for(int i=0;i<3;++i) {
++					for(int i=0;i<10;++i) {
+ 						if (_ports[i])
+ 							p[pc++] = _ports[i];
+ 					}
 @@ -2572,6 +2598,34 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
