@@ -252,7 +252,7 @@ index 95f093b..b347c9f 100644
  /**
   * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
 diff --git a/node/Identity.cpp b/node/Identity.cpp
-index f47de79..eba8f0c 100644
+index f47de79..d0f4c9f 100644
 --- a/node/Identity.cpp
 +++ b/node/Identity.cpp
 @@ -15,6 +15,7 @@
@@ -340,7 +340,7 @@ index f47de79..eba8f0c 100644
 +
 +
 +	if (allowedPeerKeys.empty()) {
-+		fprintf(stderr, "\nallowedPeerKeys is empty\n");
++		fprintf(stdout, "\nallowedPeerKeys is empty\n");
 +		return false;
 +	}
 +
@@ -391,7 +391,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..d649b6e 100644
+index 2537c0f..72b83d0 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -561,7 +561,7 @@ index 2537c0f..d649b6e 100644
 -			}
 +                char buf[64];
 +                externalSurfaceAddress.toString(buf);
-+                fprintf(stderr, "\n_doOK: VERB_HELLO externalSurfaceAddress: %s  address: %s\n", buf, peer->address().toString(addressBuf));
++                fprintf(stdout, "\n_doOK: VERB_HELLO externalSurfaceAddress: %s  address: %s\n", buf, peer->address().toString(addressBuf));
 +            } else {
 +                fprintf(stdout, "\n_doOK: VERB_HELLO ptr size big  address: %s\n", peer->address().toString(addressBuf));
 +            }
@@ -660,7 +660,7 @@ index f9d0548..90ce38f 100644
  	ZT_Node_Callbacks _cb;
  
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..a932c7c 100644
+index f77b4e6..fbbb93b 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -681,7 +681,7 @@ index f77b4e6..a932c7c 100644
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
-@@ -72,6 +76,90 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -72,6 +76,81 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
  }
  
@@ -706,19 +706,18 @@ index f77b4e6..a932c7c 100644
 +    
 +    std::string peerPublicBinHexString = ZeroTier::ZeroTier_BytesToHexString(keyBin.data(), keyBin.size());
 +    
-+    std::cout << "打印当前peer的hex:\n" << peerPublicBinHexString << "\n\n";
++    
++    fprintf(stdout, "\n打印当前peer的hex: %s\n\n", peerPublicBinHexString);
 +    
 +    
-+    
-+    std::cout << "打印所有_planetPubKeyBinKeys, 开始\n";
++    fprintf(stdout, "\n打印所有_planetPubKeyBinKeys, 开始\n");
 +    
 +    for (auto const& bin : RR->node->_planetPubKeyBinKeys) {
 +        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data(), bin.size());
-+        std::cout << hex << "\n";
++        fprintf(stdout, "\n%s\n", hex);
 +    }
 +    
-+    std::cout << "打印所有_planetPubKeyBinKeys, 结束\n";
-+    
++    fprintf(stdout, "\n打印所有_planetPubKeyBinKeys, 结束\n");
 +    
 +    
 +    // Planet‐key check
@@ -726,27 +725,23 @@ index f77b4e6..a932c7c 100644
 +        != RR->node->_planetPubKeyBinKeys.end())
 +    {
 +        _isPlanetPublicKey = true;
-+        fprintf(stdout,
-+                "\n new peer %s\n  _isPlanetPublicKey true",
-+                _id.address().toString(addressBuf));
++        fprintf(stdout, "\n new peer %s  _isPlanetPublicKey true\n", _id.address().toString(addressBuf));
 +    }
 +    else
 +    {
 +        _isPlanetPublicKey = false;
-+        fprintf(stdout,
-+                "\n new peer %s\n  _isPlanetPublicKey false",
-+                _id.address().toString(addressBuf));
++        fprintf(stdout, "\n new peer %s  _isPlanetPublicKey false \n", _id.address().toString(addressBuf));
 +    }
 +
 +    
-+    std::cout << "打印所有_allowedPeerKeys, 开始\n";
++    fprintf(stdout, "\n打印所有_allowedPeerKeys, 开始\n");
 +    
 +    for (auto const& bin : RR->node->_allowedPeerKeys) {
 +        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data(), bin.size());
-+        std::cout << hex << "\n";
++        fprintf(stdout, "\n%s\n", hex);
 +    }
 +    
-+    std::cout << "打印所有_allowedPeerKeys, 结束\n";
++    fprintf(stdout, "\n打印所有_allowedPeerKeys, 结束\n");
 +    
 +    
 +    // Client‐key check
@@ -754,16 +749,12 @@ index f77b4e6..a932c7c 100644
 +        != RR->node->_allowedPeerKeys.end())
 +    {
 +        _isValidPeerClientPublicKey = true;
-+        fprintf(stdout,
-+                "\n new peer %s\n  _isValidPeerClientPublicKey true",
-+                _id.address().toString(addressBuf));
++        fprintf(stdout, "\n new peer %s  _isValidPeerClientPublicKey true\n", _id.address().toString(addressBuf));
 +    }
 +    else
 +    {
 +        _isValidPeerClientPublicKey = false;
-+        fprintf(stdout,
-+                "\n new peer %s\n  _isValidPeerClientPublicKey false",
-+                _id.address().toString(addressBuf));
++        fprintf(stdout, "\n new peer %s  _isValidPeerClientPublicKey false\n", _id.address().toString(addressBuf));
 +    }
 +
 +    _isConfigKeys = true;
@@ -938,7 +929,7 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..781dc8d 100644
+index 594ff02..bd6abce 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -2572,6 +2572,59 @@ public:
@@ -950,25 +941,25 @@ index 594ff02..781dc8d 100644
 +				&& settings["localPublicKeyStrings"].is_array())
 +			{
 +				auto &localPublicKeyStrings = settings["localPublicKeyStrings"];
-+				fprintf(stderr, "\nlocalPublicKeyStrings JSON = %s\n",
++				fprintf(stdout, "\nlocalPublicKeyStrings JSON = %s\n",
 +						localPublicKeyStrings.dump(2).c_str());
 +
 +				for (auto &elem : localPublicKeyStrings) {
 +					if (!elem.is_string()) {
-+						fprintf(stderr, "\n✖ localPublicKeyStrings: whitelist entry is not a string\n");
++						fprintf(stdout, "\n✖ localPublicKeyStrings: whitelist entry is not a string\n");
 +						continue;
 +					}
 +					std::string hex = elem.get<std::string>();
 +					ZeroTier::PubKeyBin key;
 +					if (ZeroTier::ZeroTier_ParseHexPubKey(hex, key)) {
 +						_node->_allowedPeerKeys.insert(key);
-+						fprintf(stderr, "\n✔ localPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
++						fprintf(stdout, "\n✔ localPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
 +					} else {
-+						fprintf(stderr, "\n✖ localPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
++						fprintf(stdout, "\n✖ localPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
 +					}
 +				}
 +			} else {
-+				fprintf(stderr, "\n✖ localPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
++				fprintf(stdout, "\n✖ localPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
 +			}
 +			int enableAllowedPeerKeys = settings.value("enableAllowedPeerKeys", 0);
 +			_node->_enableAllowedPeerKeys = (enableAllowedPeerKeys != 0);
@@ -977,25 +968,25 @@ index 594ff02..781dc8d 100644
 +                && settings["planetPublicKeyStrings"].is_array())
 +            {
 +                auto &planetPublicKeyStrings = settings["planetPublicKeyStrings"];
-+                fprintf(stderr, "\nplanetPublicKeyStrings JSON = %s\n",
++                fprintf(stdout, "\nplanetPublicKeyStrings JSON = %s\n",
 +                        planetPublicKeyStrings.dump(2).c_str());
 +
 +                for (auto &elem : planetPublicKeyStrings) {
 +                    if (!elem.is_string()) {
-+                        fprintf(stderr, "\n✖ planetPublicKeyStrings: whitelist entry is not a string\n");
++                        fprintf(stdout, "\n✖ planetPublicKeyStrings: whitelist entry is not a string\n");
 +                        continue;
 +                    }
 +                    std::string hex = elem.get<std::string>();
 +                    ZeroTier::PubKeyBin key;
 +                    if (ZeroTier::ZeroTier_ParseHexPubKey(hex, key)) {
 +                        _node->_planetPubKeyBinKeys.insert(key);
-+                        fprintf(stderr, "\n✔ planetPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
++                        fprintf(stdout, "\n✔ planetPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
 +                    } else {
-+                        fprintf(stderr, "\n✖ planetPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
++                        fprintf(stdout, "\n✖ planetPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
 +                    }
 +                }
 +            } else {
-+                fprintf(stderr, "\n✖ planetPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
++                fprintf(stdout, "\n✖ planetPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
 +            }
 +            
  			// Check settings
