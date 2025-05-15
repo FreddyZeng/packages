@@ -669,7 +669,7 @@ index f77b4e6..8f987f4 100644
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..a4b7907 100644
+index 777a1e9..e57e32f 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -540,6 +540,19 @@ public:
@@ -692,20 +692,30 @@ index 777a1e9..a4b7907 100644
  			SharedPtr<Peer> p(new Peer(renv,renv->identity,id));
  
  			p->_vProto = b.template at<uint16_t>(ptr);
-@@ -620,6 +633,12 @@ public:
+@@ -620,6 +633,22 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
 +    
 +    inline bool isPlanetPublicKey()
-+    { return _isPlanetPublicKey; }
++    {
++        if (!RR->node->_enableAllowedPeerKeys) {
++            return false;
++        }
++        return _isPlanetPublicKey;
++    }
 +    
 +    inline bool isValidPeerClientPublicKey()
-+    { return _isValidPeerClientPublicKey; }
++    {
++        if (!RR->node->_enableAllowedPeerKeys) {
++            return true;
++        }
++        return _isValidPeerClientPublicKey;
++    }
  
  private:
  	struct _PeerPath
-@@ -634,6 +653,9 @@ private:
+@@ -634,6 +663,9 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
