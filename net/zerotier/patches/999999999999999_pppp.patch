@@ -548,7 +548,7 @@ index 1643487..416250f 100644
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..c065cd4 100644
+index f9d0548..004eefd 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -615,11 +615,12 @@ index f9d0548..c065cd4 100644
  class World;
  
  /**
-@@ -289,6 +332,13 @@ public:
+@@ -289,6 +332,14 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
 +
++    bool _isLoadConfig = false;
 +	// 在 Node 类的 public 或 protected 区域，添加：
 +	std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _allowedPeerKeys;
 +	bool _enableAllowedPeerKeys;
@@ -630,7 +631,7 @@ index f9d0548..c065cd4 100644
  	ZT_Node_Callbacks _cb;
  
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..8f987f4 100644
+index f77b4e6..f9a9c85 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -642,37 +643,90 @@ index f77b4e6..8f987f4 100644
  #include "../version.h"
  #include "Constants.hpp"
  #include "Peer.hpp"
-@@ -60,6 +62,25 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -60,6 +62,8 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	, _packet_errors{Metrics::peer_packet_errors.Add({{"node_id", OSUtils::nodeIDStr(peerIdentity.address().toInt())}})}
  #endif
  {
-+    if (RR->node->_enableAllowedPeerKeys) {
-+        PubKeyBin keyBin;
-+        // 1) 你之前用 memcpy 也是可以的：
-+        memcpy(keyBin.data(), peerIdentity.publicKey().data, ZT_C25519_PUBLIC_KEY_LEN);
-+        
-+        if (RR->node->_planetPubKeyBinKeys.find(keyBin) == RR->node->_planetPubKeyBinKeys.end()) {
-+            _isPlanetPublicKey = true;
-+        } else {
-+            _isPlanetPublicKey = false;
-+        }
-+        
-+        if (RR->node->_allowedPeerKeys.find(keyBin) == RR->node->_allowedPeerKeys.end()) {
-+            _isValidPeerClientPublicKey = true;
-+        } else {
-+            _isValidPeerClientPublicKey = false;
-+        }
-+    }
-+
++    ZeroTier::Peer::updateAllowedPeerKeys();
 +
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
+@@ -72,6 +76,60 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+ 	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
+ }
+ 
++void Peer::updateAllowedPeerKeys()
++{
++    if (!RR->node->_enableAllowedPeerKeys) {
++        return;
++    }
++    
++    if (!RR->node->_isLoadConfig) {
++        return;
++    }
++
++    char addressBuf[11];
++    PubKeyBin keyBin;
++    // copy the raw public key bytes
++    std::memcpy(keyBin.data(),
++                _id.publicKey().data,
++                ZT_C25519_PUBLIC_KEY_LEN);
++
++    // Planet‐key check
++    if (RR->node->_planetPubKeyBinKeys.find(keyBin)
++        == RR->node->_planetPubKeyBinKeys.end())
++    {
++        _isPlanetPublicKey = true;
++        fprintf(stdout,
++                "\n new peer %s\n  _isPlanetPublicKey true",
++                _id.address().toString(addressBuf));
++    }
++    else
++    {
++        _isPlanetPublicKey = false;
++        fprintf(stdout,
++                "\n new peer %s\n  _isPlanetPublicKey false",
++                _id.address().toString(addressBuf));
++    }
++
++    // Client‐key check
++    if (RR->node->_allowedPeerKeys.find(keyBin)
++        == RR->node->_allowedPeerKeys.end())
++    {
++        _isValidPeerClientPublicKey = true;
++        fprintf(stdout,
++                "\n new peer %s\n  _isValidPeerClientPublicKey true",
++                _id.address().toString(addressBuf));
++    }
++    else
++    {
++        _isValidPeerClientPublicKey = false;
++        fprintf(stdout,
++                "\n new peer %s\n  _isValidPeerClientPublicKey false",
++                _id.address().toString(addressBuf));
++    }
++
++    _isConfigKeys = true;
++}
++
+ void Peer::received(
+ 	void *tPtr,
+ 	const SharedPtr<Path> &path,
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..e57e32f 100644
+index 777a1e9..9c89c72 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
-@@ -540,6 +540,19 @@ public:
+@@ -67,6 +67,8 @@ public:
+ 	 * @throws std::runtime_error Key agreement with peer's identity failed
+ 	 */
+ 	Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Identity &peerIdentity);
++    
++    void updateAllowedPeerKeys();
+ 
+ 	/**
+ 	 * @return This peer's ZT address (short for identity().address())
+@@ -540,6 +542,19 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -692,7 +746,7 @@ index 777a1e9..e57e32f 100644
  			SharedPtr<Peer> p(new Peer(renv,renv->identity,id));
  
  			p->_vProto = b.template at<uint16_t>(ptr);
-@@ -620,6 +633,22 @@ public:
+@@ -620,6 +635,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -702,6 +756,17 @@ index 777a1e9..e57e32f 100644
 +        if (!RR->node->_enableAllowedPeerKeys) {
 +            return false;
 +        }
++        
++        if (!RR->node->_isLoadConfig) {
++            return true;
++        }
++        
++        if (isConfigKeys()) {
++            return _isPlanetPublicKey;
++        }
++        
++        ZeroTier::Peer::updateAllowedPeerKeys();
++        
 +        return _isPlanetPublicKey;
 +    }
 +    
@@ -710,18 +775,35 @@ index 777a1e9..e57e32f 100644
 +        if (!RR->node->_enableAllowedPeerKeys) {
 +            return true;
 +        }
++        
++        if (!RR->node->_isLoadConfig) {
++            return false;
++        }
++        
++        if (isConfigKeys()) {
++            return _isValidPeerClientPublicKey;
++        }
++        
++        ZeroTier::Peer::updateAllowedPeerKeys();
++        
 +        return _isValidPeerClientPublicKey;
++    }
++
++    inline bool isConfigKeys()
++    {
++        return _isConfigKeys;
 +    }
  
  private:
  	struct _PeerPath
-@@ -634,6 +663,9 @@ private:
+@@ -634,6 +692,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
 +    
 +    bool _isPlanetPublicKey;
 +    bool _isValidPeerClientPublicKey;
++    bool _isConfigKeys;
  
  	int64_t _lastReceive; // direct or indirect
  	int64_t _lastNontrivialReceive; // frames, things like netconf, etc.
@@ -800,7 +882,7 @@ index fc272ce..34358a0 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..893e354 100644
+index 594ff02..781dc8d 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -2572,6 +2572,59 @@ public:
@@ -863,6 +945,15 @@ index 594ff02..893e354 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
+@@ -2657,6 +2710,8 @@ public:
+ 					_allowManagementFrom.push_back(nw);
+ 			}
+ 		}
++        
++        _node->_isLoadConfig = true;
+ 	}
+ 
+ #if ZT_VAULT_SUPPORT
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
 index 44bc5ea..cd8c630 100644
 --- a/tcp-proxy/tcp-proxy.cpp
