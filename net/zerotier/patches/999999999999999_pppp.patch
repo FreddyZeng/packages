@@ -1,9 +1,17 @@
 diff --git a/node/C25519.hpp b/node/C25519.hpp
-index 410ad72..cc47919 100644
+index 410ad72..aab0934 100644
 --- a/node/C25519.hpp
 +++ b/node/C25519.hpp
-@@ -16,12 +16,33 @@
+@@ -14,14 +14,102 @@
+ #ifndef ZT_C25519_HPP
+ #define ZT_C25519_HPP
  
++#include <string>    // std::string
++#include <vector>    // std::vector<uint8_t>
++#include <cstdint>   // uint8_t
++#include <cstddef>   // size_t
++#include <cstring>   // std::memcpy, std::memcmp
++
  #include "Utils.hpp"
  
 -namespace ZeroTier {
@@ -33,6 +41,67 @@ index 410ad72..cc47919 100644
 +	}
 +};
 +
++// 将单个十六进制字符映射到 0–15，失败返回 false
++static bool ZeroTier_HexCharToValue(char c, uint8_t &out) {
++    if ('0' <= c && c <= '9') { out = c - '0'; return true; }
++    if ('a' <= c && c <= 'f') { out = c - 'a' + 10; return true; }
++    if ('A' <= c && c <= 'F') { out = c - 'A' + 10; return true; }
++    return false;
++}
++
++// 通用：解析任意偶数长度的 hex 字符串到字节数组
++// - hex: 非空且偶数长度，只能包含合法十六进制字符
++// - out: 解析后字节，长度 = hex.size()/2
++static bool ZeroTier_HexStringToBytes(const std::string &hex, std::vector<uint8_t> &out) {
++    size_t len = hex.size();
++    if (len == 0 || (len & 1)) {
++        return false;  // 长度检查
++    }
++    out.clear();
++    out.reserve(len / 2);
++    for (size_t i = 0; i < len; i += 2) {
++        uint8_t hi, lo;
++        if (!ZeroTier_HexCharToValue(hex[i], hi) ||
++            !ZeroTier_HexCharToValue(hex[i+1], lo)) {
++            return false;  // 非法字符
++        }
++        out.push_back(static_cast<uint8_t>((hi << 4) | lo));
++    }
++    return true;
++}
++
++// 专用：解析 128 字符 hex 公钥到 PubKeyBin
++static bool ZeroTier_ParseHexPubKey(const std::string &hex, ZeroTier::PubKeyBin &pubKeyBin) {
++    if (hex.size() != ZT_C25519_PUBLIC_KEY_LEN * 2) return false;
++    std::vector<uint8_t> buf;
++    if (!ZeroTier_HexStringToBytes(hex, buf)) return false;
++    // 直接 memcpy 最清晰
++    std::memcpy(pubKeyBin.data(), buf.data(), ZT_C25519_PUBLIC_KEY_LEN);
++    return true;
++}
++
++// 通用：把任意字节数组转换成 hex 字符串（小写）
++// - data: 指向输入字节流
++// - len:  数据长度
++// 返回：长度 = len*2 的 std::string，每个字节对应两个 hex 字符
++static std::string ZeroTier_BytesToHexString(const uint8_t* data, size_t len) {
++    static const char* hexDigits = "0123456789abcdef";
++    std::string s;
++    s.reserve(len * 2);
++    for (size_t i = 0; i < len; ++i) {
++        uint8_t b = data[i];
++        // 高 4 位
++        s.push_back(hexDigits[b >> 4]);
++        // 低 4 位
++        s.push_back(hexDigits[b & 0x0F]);
++    }
++    return s;
++}
++
++// 如果你有一个 PubKeyBin（固定长度），可以这样包一层：
++static std::string ZeroTier_PubKeyBinToHex(const PubKeyBin& pubKeyBin) {
++    return ZeroTier_BytesToHexString(pubKeyBin.data(), ZT_C25519_PUBLIC_KEY_LEN);
++}
 +
  /**
   * A combined Curve25519 ECDH and Ed25519 signature engine
@@ -548,7 +617,7 @@ index 1643487..416250f 100644
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..004eefd 100644
+index f9d0548..90ce38f 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -567,55 +636,15 @@ index f9d0548..004eefd 100644
  
  // Bit mask for "expecting reply" hash
  #define ZT_EXPECTING_REPLIES_BUCKET_MASK1 255
-@@ -43,6 +45,47 @@
+@@ -43,6 +45,7 @@
  
  namespace ZeroTier {
  
 +
-+// 将单个十六进制字符映射到 0–15，失败返回 false
-+static bool ZeroTier_HexCharToValue(char c, uint8_t &out) {
-+	if ('0' <= c && c <= '9') { out = c - '0'; return true; }
-+	if ('a' <= c && c <= 'f') { out = c - 'a' + 10; return true; }
-+	if ('A' <= c && c <= 'F') { out = c - 'A' + 10; return true; }
-+	return false;
-+}
-+
-+// 通用：解析任意偶数长度的 hex 字符串到字节数组
-+// - hex: 非空且偶数长度，只能包含合法十六进制字符
-+// - out: 解析后字节，长度 = hex.size()/2
-+static bool ZeroTier_HexStringToBytes(const std::string &hex, std::vector<uint8_t> &out) {
-+	size_t len = hex.size();
-+	if (len == 0 || (len & 1)) {
-+		return false;  // 长度检查
-+	}
-+	out.clear();
-+	out.reserve(len / 2);
-+	for (size_t i = 0; i < len; i += 2) {
-+		uint8_t hi, lo;
-+		if (!ZeroTier_HexCharToValue(hex[i], hi) ||
-+			!ZeroTier_HexCharToValue(hex[i+1], lo)) {
-+			return false;  // 非法字符
-+		}
-+		out.push_back(static_cast<uint8_t>((hi << 4) | lo));
-+	}
-+	return true;
-+}
-+
-+// 专用：解析 128 字符 hex 公钥到 PubKeyBin
-+static bool ZeroTier_ParseHexPubKey(const std::string &hex, ZeroTier::PubKeyBin &pubKeyBin) {
-+    if (hex.size() != ZT_C25519_PUBLIC_KEY_LEN * 2) return false;
-+    std::vector<uint8_t> buf;
-+    if (!ZeroTier_HexStringToBytes(hex, buf)) return false;
-+    // 直接 memcpy 最清晰
-+    std::memcpy(pubKeyBin.data(), buf.data(), ZT_C25519_PUBLIC_KEY_LEN);
-+    return true;
-+}
-+
-+
  class World;
  
  /**
-@@ -289,6 +332,14 @@ public:
+@@ -289,6 +292,14 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -631,7 +660,7 @@ index f9d0548..004eefd 100644
  	ZT_Node_Callbacks _cb;
  
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..f9a9c85 100644
+index f77b4e6..b48d8f3 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -652,7 +681,7 @@ index f77b4e6..f9a9c85 100644
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
-@@ -72,6 +76,60 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -72,6 +76,88 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
  }
  
@@ -672,7 +701,24 @@ index f77b4e6..f9a9c85 100644
 +    std::memcpy(keyBin.data(),
 +                _id.publicKey().data,
 +                ZT_C25519_PUBLIC_KEY_LEN);
-+
++    
++    std::string peerPublicBinHexString = ZeroTier::ZeroTier_BytesToHexString(keyBin, ZT_C25519_PUBLIC_KEY_LEN);
++    
++    std::cout << "打印当前peer的hex:\n" << peerPublicBinHexString << "\n\n";
++    
++    
++    
++    std::cout << "打印所有_planetPubKeyBinKeys, 开始\n";
++    
++    for (auto const& bin : _planetPubKeyBinKeys) {
++        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data, ZT_C25519_PUBLIC_KEY_LEN);
++        std::cout << hex << "\n";
++    }
++    
++    std::cout << "打印所有_planetPubKeyBinKeys, 结束\n";
++    
++    
++    
 +    // Planet‐key check
 +    if (RR->node->_planetPubKeyBinKeys.find(keyBin)
 +        == RR->node->_planetPubKeyBinKeys.end())
@@ -690,6 +736,17 @@ index f77b4e6..f9a9c85 100644
 +                _id.address().toString(addressBuf));
 +    }
 +
++    
++    std::cout << "打印所有_allowedPeerKeys, 开始\n";
++    
++    for (auto const& bin : _allowedPeerKeys) {
++        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data, ZT_C25519_PUBLIC_KEY_LEN);
++        std::cout << hex << "\n";
++    }
++    
++    std::cout << "打印所有_allowedPeerKeys, 结束\n";
++    
++    
 +    // Client‐key check
 +    if (RR->node->_allowedPeerKeys.find(keyBin)
 +        == RR->node->_allowedPeerKeys.end())
