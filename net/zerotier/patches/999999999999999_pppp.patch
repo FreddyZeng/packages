@@ -660,7 +660,7 @@ index f9d0548..90ce38f 100644
  	ZT_Node_Callbacks _cb;
  
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..e239b9f 100644
+index f77b4e6..a932c7c 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -681,7 +681,7 @@ index f77b4e6..e239b9f 100644
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
-@@ -72,6 +76,88 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -72,6 +76,90 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
  }
  
@@ -698,11 +698,13 @@ index f77b4e6..e239b9f 100644
 +    char addressBuf[11];
 +    PubKeyBin keyBin;
 +    // copy the raw public key bytes
-+    std::memcpy(keyBin.data(),
-+                _id.publicKey().data,
-+                ZT_C25519_PUBLIC_KEY_LEN);
++    std::memcpy(
++                keyBin.data(),
++                _id.publicKey().data,     // C25519::Public::data 是原始 uint8_t[]
++                keyBin.size()             // 自动与 PubKeyBin 保持一致
++                );
 +    
-+    std::string peerPublicBinHexString = ZeroTier::ZeroTier_BytesToHexString(keyBin, ZT_C25519_PUBLIC_KEY_LEN);
++    std::string peerPublicBinHexString = ZeroTier::ZeroTier_BytesToHexString(keyBin.data(), keyBin.size());
 +    
 +    std::cout << "打印当前peer的hex:\n" << peerPublicBinHexString << "\n\n";
 +    
@@ -711,7 +713,7 @@ index f77b4e6..e239b9f 100644
 +    std::cout << "打印所有_planetPubKeyBinKeys, 开始\n";
 +    
 +    for (auto const& bin : RR->node->_planetPubKeyBinKeys) {
-+        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data, ZT_C25519_PUBLIC_KEY_LEN);
++        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data(), bin.size());
 +        std::cout << hex << "\n";
 +    }
 +    
@@ -721,7 +723,7 @@ index f77b4e6..e239b9f 100644
 +    
 +    // Planet‐key check
 +    if (RR->node->_planetPubKeyBinKeys.find(keyBin)
-+        == RR->node->_planetPubKeyBinKeys.end())
++        != RR->node->_planetPubKeyBinKeys.end())
 +    {
 +        _isPlanetPublicKey = true;
 +        fprintf(stdout,
@@ -740,7 +742,7 @@ index f77b4e6..e239b9f 100644
 +    std::cout << "打印所有_allowedPeerKeys, 开始\n";
 +    
 +    for (auto const& bin : RR->node->_allowedPeerKeys) {
-+        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data, ZT_C25519_PUBLIC_KEY_LEN);
++        std::string hex = ZeroTier::ZeroTier_BytesToHexString(bin.data(), bin.size());
 +        std::cout << hex << "\n";
 +    }
 +    
@@ -749,7 +751,7 @@ index f77b4e6..e239b9f 100644
 +    
 +    // Client‐key check
 +    if (RR->node->_allowedPeerKeys.find(keyBin)
-+        == RR->node->_allowedPeerKeys.end())
++        != RR->node->_allowedPeerKeys.end())
 +    {
 +        _isValidPeerClientPublicKey = true;
 +        fprintf(stdout,
