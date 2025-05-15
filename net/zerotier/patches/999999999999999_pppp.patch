@@ -322,7 +322,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..db281e2 100644
+index 2537c0f..d649b6e 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -446,7 +446,7 @@ index 2537c0f..db281e2 100644
  			return true;
  		}
  
-+		if (!id.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys, RR->node->_enableAllowedPeerKeys)) {
++		if (!newPeer->isValidPeerClientPublicKey()) {
 +			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid allowedPeerKeys identity");
 +			fprintf(stdout, "\n _doHELLO invalid allowedPeerKeys identity %s\n", id.address().toString(addressBuf));
 +			return true;
@@ -714,7 +714,7 @@ index f77b4e6..f9a9c85 100644
  	void *tPtr,
  	const SharedPtr<Path> &path,
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..9c89c72 100644
+index 777a1e9..a37a79b 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -726,27 +726,23 @@ index 777a1e9..9c89c72 100644
  
  	/**
  	 * @return This peer's ZT address (short for identity().address())
-@@ -540,6 +542,19 @@ public:
+@@ -540,7 +542,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
 +			char buf[11];
 +			char *addressString = id.address().toString(buf);
 +
-+			fprintf(stdout, "\nwill add peer from cache: %s\n", addressString);
-+
-+			if (!id.locallyValidateWithAllowedPeerKeys(renv->node->_allowedPeerKeys, renv->node->_enableAllowedPeerKeys)) {
-+
-+				fprintf(stdout, "\nnot add peer from cache: %s\n", addressString);
-+				return SharedPtr<Peer>();
-+			}
-+
-+			fprintf(stdout, "\ndid add peer from cache: %s\n", addressString);
-+
  			SharedPtr<Peer> p(new Peer(renv,renv->identity,id));
++            
++            if (!p->isValidPeerClientPublicKey()) {
++                fprintf(stdout, "\nnot add peer from cache: %s\n", addressString);
++                return SharedPtr<Peer>();
++            }
  
  			p->_vProto = b.template at<uint16_t>(ptr);
-@@ -620,6 +635,49 @@ public:
+ 			ptr += 2;
+@@ -620,6 +630,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -796,7 +792,7 @@ index 777a1e9..9c89c72 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +692,10 @@ private:
+@@ -634,6 +687,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -836,7 +832,7 @@ index 7664f7a..bee4eff 100644
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
 diff --git a/node/Topology.cpp b/node/Topology.cpp
-index fc272ce..34358a0 100644
+index fc272ce..91fb136 100644
 --- a/node/Topology.cpp
 +++ b/node/Topology.cpp
 @@ -11,6 +11,7 @@
@@ -847,30 +843,31 @@ index fc272ce..34358a0 100644
  #include "Constants.hpp"
  #include "Topology.hpp"
  #include "RuntimeEnvironment.hpp"
-@@ -398,7 +399,16 @@ void Topology::_memoizeUpstreams(void *tPtr)
+@@ -398,7 +399,17 @@ void Topology::_memoizeUpstreams(void *tPtr)
  			_upstreamAddresses.push_back(id.address());
  			SharedPtr<Peer> &hp = _peers[id.address()];
  			if (!hp) {
 +				char addressBuf[11];
 +
-+				if (!i->identity.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys, RR->node->_enableAllowedPeerKeys)) {
-+					fprintf(stdout, "\n add peer memoizeUpstreams invalid allowedPeerKeys identity %s\n", i->identity.address().toString(addressBuf));
-+					break;
-+				}
 +
  				hp = new Peer(RR,RR->identity,id);
++                
++                if (!hp->isValidPeerClientPublicKey()) {
++                    fprintf(stdout, "\n add peer memoizeUpstreams invalid allowedPeerKeys identity %s\n", i->identity.address().toString(addressBuf));
++                    break;
++                }
 +
 +				fprintf(stdout, "\nadd peer memoizeUpstreams: %s\n", i->identity.address().toString(addressBuf));
  			}
  		}
  	}
-@@ -411,7 +421,16 @@ void Topology::_memoizeUpstreams(void *tPtr)
+@@ -411,7 +422,16 @@ void Topology::_memoizeUpstreams(void *tPtr)
  				_upstreamAddresses.push_back(i->identity.address());
  				SharedPtr<Peer> &hp = _peers[i->identity.address()];
  				if (!hp) {
 +					char addressBuf[11];
 +
-+					if (!i->identity.locallyValidateWithAllowedPeerKeys(RR->node->_allowedPeerKeys, RR->node->_enableAllowedPeerKeys)) {
++					if (!hp->isValidPeerClientPublicKey()) {
 +						fprintf(stdout, "\n add peer memoizeUpstreams invalid allowedPeerKeys identity %s\n", i->identity.address().toString(addressBuf));
 +						break;
 +					}
