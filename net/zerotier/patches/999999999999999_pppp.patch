@@ -531,8 +531,24 @@ index 2537c0f..0de13de 100644
  			}
  			break;
  
+diff --git a/node/Network.cpp b/node/Network.cpp
+index 1643487..416250f 100644
+--- a/node/Network.cpp
++++ b/node/Network.cpp
+@@ -1349,6 +1349,11 @@ bool Network::gate(void *tPtr,const SharedPtr<Peer> &peer)
+ 	//int64_t comRevocationThreshold = 0;
+ 	Mutex::Lock _l(_lock);
+ 	try {
++        
++        if (peer->isPlanetPublicKey()) {
++            return false;
++        }
++        
+ 		if (_config) {
+ 			Membership *m = _memberships.get(peer->address());
+ 			//if (m) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..2f4c16e 100644
+index f9d0548..c065cd4 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -599,7 +615,7 @@ index f9d0548..2f4c16e 100644
  class World;
  
  /**
-@@ -289,6 +332,11 @@ public:
+@@ -289,6 +332,13 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -607,12 +623,47 @@ index f9d0548..2f4c16e 100644
 +	// 在 Node 类的 public 或 protected 区域，添加：
 +	std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _allowedPeerKeys;
 +	bool _enableAllowedPeerKeys;
++    
++    std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _planetPubKeyBinKeys;
 +
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
+diff --git a/node/Peer.cpp b/node/Peer.cpp
+index f77b4e6..8d3de67 100644
+--- a/node/Peer.cpp
++++ b/node/Peer.cpp
+@@ -11,6 +11,8 @@
+  */
+ /****/
+ 
++#include <cstring>    // for memcpy
++
+ #include "../version.h"
+ #include "Constants.hpp"
+ #include "Peer.hpp"
+@@ -60,6 +62,19 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+ 	, _packet_errors{Metrics::peer_packet_errors.Add({{"node_id", OSUtils::nodeIDStr(peerIdentity.address().toInt())}})}
+ #endif
+ {
++    if (RR->node->_enableAllowedPeerKeys) {
++        PubKeyBin keyBin;
++        // 1) 你之前用 memcpy 也是可以的：
++        memcpy(keyBin.data(), peerIdentity.publicKey().data, ZT_C25519_PUBLIC_KEY_LEN);
++        
++        if (RR->node->_planetPubKeyBinKeys.find(keyBin) == RR->node->_planetPubKeyBinKeys.end()) {
++            _isPlanetPublicKey = true;
++        } else {
++            _isPlanetPublicKey = false;
++        }
++    }
++
++
+ 	if (!myIdentity.agree(peerIdentity,_key)) {
+ 		throw ZT_EXCEPTION_INVALID_ARGUMENT;
+ 	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..768280d 100644
+index 777a1e9..0bcd44f 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -540,6 +540,19 @@ public:
@@ -635,6 +686,25 @@ index 777a1e9..768280d 100644
  			SharedPtr<Peer> p(new Peer(renv,renv->identity,id));
  
  			p->_vProto = b.template at<uint16_t>(ptr);
+@@ -620,6 +633,9 @@ public:
+ 
+ 	inline const AES *aesKeys() const
+ 	{ return _aesKeys; }
++    
++    inline bool isPlanetPublicKey()
++    { return _isPlanetPublicKey; }
+ 
+ private:
+ 	struct _PeerPath
+@@ -634,6 +650,8 @@ private:
+ 	AES _aesKeys[2];
+ 
+ 	const RuntimeEnvironment *RR;
++    
++    bool _isPlanetPublicKey;
+ 
+ 	int64_t _lastReceive; // direct or indirect
+ 	int64_t _lastNontrivialReceive; // frames, things like netconf, etc.
 diff --git a/node/SelfAwareness.cpp b/node/SelfAwareness.cpp
 index dab19c6..c75b57d 100644
 --- a/node/SelfAwareness.cpp
@@ -710,10 +780,10 @@ index fc272ce..34358a0 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..449ff7c 100644
+index 594ff02..893e354 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
-@@ -2572,6 +2572,34 @@ public:
+@@ -2572,6 +2572,59 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -727,24 +797,49 @@ index 594ff02..449ff7c 100644
 +
 +				for (auto &elem : localPublicKeyStrings) {
 +					if (!elem.is_string()) {
-+						fprintf(stderr, "\n✖ whitelist entry is not a string\n");
++						fprintf(stderr, "\n✖ localPublicKeyStrings: whitelist entry is not a string\n");
 +						continue;
 +					}
 +					std::string hex = elem.get<std::string>();
 +					ZeroTier::PubKeyBin key;
 +					if (ZeroTier::ZeroTier_ParseHexPubKey(hex, key)) {
 +						_node->_allowedPeerKeys.insert(key);
-+						fprintf(stderr, "\n✔ loaded whitelist key: %s\n", hex.c_str());
++						fprintf(stderr, "\n✔ localPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
 +					} else {
-+						fprintf(stderr, "\n✖ invalid public key hex: %s\n", hex.c_str());
++						fprintf(stderr, "\n✖ localPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
 +					}
 +				}
 +			} else {
-+				fprintf(stderr, "\n✖ no valid localPublicKeyStrings array in settings\n");
++				fprintf(stderr, "\n✖ localPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
 +			}
 +			int enableAllowedPeerKeys = settings.value("enableAllowedPeerKeys", 0);
 +			_node->_enableAllowedPeerKeys = (enableAllowedPeerKeys != 0);
 +
++            if (settings.contains("planetPublicKeyStrings")
++                && settings["planetPublicKeyStrings"].is_array())
++            {
++                auto &planetPublicKeyStrings = settings["planetPublicKeyStrings"];
++                fprintf(stderr, "\nplanetPublicKeyStrings JSON = %s\n",
++                        planetPublicKeyStrings.dump(2).c_str());
++
++                for (auto &elem : planetPublicKeyStrings) {
++                    if (!elem.is_string()) {
++                        fprintf(stderr, "\n✖ planetPublicKeyStrings: whitelist entry is not a string\n");
++                        continue;
++                    }
++                    std::string hex = elem.get<std::string>();
++                    ZeroTier::PubKeyBin key;
++                    if (ZeroTier::ZeroTier_ParseHexPubKey(hex, key)) {
++                        _node->_planetPubKeyBinKeys.insert(key);
++                        fprintf(stderr, "\n✔ planetPublicKeyStrings: loaded whitelist key: %s\n", hex.c_str());
++                    } else {
++                        fprintf(stderr, "\n✖ planetPublicKeyStrings: invalid public key hex: %s\n", hex.c_str());
++                    }
++                }
++            } else {
++                fprintf(stderr, "\n✖ planetPublicKeyStrings: no valid localPublicKeyStrings array in settings\n");
++            }
++            
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
