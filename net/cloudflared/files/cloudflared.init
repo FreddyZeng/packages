@@ -46,4 +46,7 @@ reload_service() {
 
 service_triggers() {
 	procd_add_reload_trigger "$CONF"
+    procd_add_interface_trigger "interface.*.up" "wan" /etc/init.d/cloudflared restart
+    procd_add_interface_trigger "interface.*.up" "wan2" /etc/init.d/cloudflared restart
+    procd_add_interface_trigger "interface.*.up" "wan3" /etc/init.d/cloudflared restart
 }
