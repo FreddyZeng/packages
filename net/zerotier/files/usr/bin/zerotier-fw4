@@ -1,67 +1,101 @@
 #!/bin/sh
 
-FW_PATH="/var/run/zerotier-one/_fw4"
+FW_PATH="/var/run/zerotier-one/_fw3"
 [ -d "$FW_PATH" ] || mkdir -p "$FW_PATH"
 
 while getopts "i:s" arg; do
-	case "$arg" in
-	i)
-		iface="$OPTARG"
-		[ -n "$iface" ] || continue
+ case "$arg" in
+ i)
+  iface="$OPTARG"
+  [ -n "$iface" ] || continue
 
-		network_id="$(zerotier-cli -j listnetworks | jsonfilter -qe "@[@.portDeviceName=\"$iface\"].nwid")"
-		[ -n "$network_id" ] || continue
+  # 获取 ZeroTier 网络 ID
+  network_id="$(zerotier-cli -j listnetworks | jsonfilter -qe "@[@.portDeviceName=\"$iface\"].nwid")"
+  [ -n "$network_id" ] || continue
 
-		network_cfg="$(uci show "zerotier" | awk "/$network_id/ NR==1 {split(\$0, conf, /[.=]/); print conf[2]}")"
-		[ -n "$network_cfg" ] || continue
+  # 查找 UCI 配置段名称
+  network_cfg="$(uci show zerotier | awk "/$network_id/ && NR==1 { split(\$0, c, /[.=]/); print c[2] }")"
+  [ -n "$network_cfg" ] || continue
 
-		if [ "$(uci -q get zerotier."$network_cfg".fw_allow_input)" = "1" ]; then
-			grep -q "$iface" "$FW_PATH/input.nft" 2>"/dev/null" && continue
-			echo "iifname $iface counter accept comment \"!fw4: Accept ZeroTier input $iface\"" >> "$FW_PATH/input.nft"
-			nft insert rule inet fw4 "input iifname $iface counter accept comment \"!fw4: Accept ZeroTier input $iface\""
-		fi
+  # 允许输入流量
+  if [ "$(uci -q get zerotier."$network_cfg".fw_allow_input)" = "1" ]; then
+   grep -q "$iface" "$FW_PATH/input.iptables" 2>/dev/null || {
+    echo "iptables -I INPUT -i $iface -m comment --comment \"!fw3: Accept ZeroTier input $iface\" -j ACCEPT" \
+     >> "$FW_PATH/input.iptables"
+    iptables -I INPUT -i "$iface" \
+     -m comment --comment "!fw3: Accept ZeroTier input $iface" -j ACCEPT
+   }
+  fi
 
-		if [ "$(uci -q get zerotier."$network_cfg".fw_allow_forward)" = "1" ]; then
-			grep -q "$iface" "$FW_PATH/forward.nft" 2>"/dev/null" && continue
-			echo "iifname $iface counter accept comment \"!fw4: Accept ZeroTier input forward $iface\"" >> "$FW_PATH/forward.nft"
-			echo "oifname $iface counter accept comment \"!fw4: Accept ZeroTier output forward $iface\"" >> "$FW_PATH/forward.nft"
-			nft insert rule inet fw4 "forward iifname $iface counter accept comment \"!fw4: Accept ZeroTier input forward $iface\""
-			nft insert rule inet fw4 "forward oifname $iface counter accept comment \"!fw4: Accept ZeroTier output forward $iface\""
-		fi
+  # 允许转发流量
+  if [ "$(uci -q get zerotier."$network_cfg".fw_allow_forward)" = "1" ]; then
+   grep -q "$iface" "$FW_PATH/forward.iptables" 2>/dev/null || {
+    echo "iptables -I FORWARD -i $iface -m comment --comment \"!fw3: Accept ZeroTier in forw $iface\" -j ACCEPT" \
+     >> "$FW_PATH/forward.iptables"
+    echo "iptables -I FORWARD -o $iface -m comment --comment \"!fw3: Accept ZeroTier out forw $iface\" -j ACCEPT" \
+     >> "$FW_PATH/forward.iptables"
+    iptables -I FORWARD -i "$iface" \
+     -m comment --comment "!fw3: Accept ZeroTier in forw $iface" -j ACCEPT
+    iptables -I FORWARD -o "$iface" \
+     -m comment --comment "!fw3: Accept ZeroTier out forw $iface" -j ACCEPT
+   }
+  fi
 
-		if [ "$(uci -q get zerotier."$network_cfg".fw_allow_masq)" = "1" ]; then
-			grep -q "$iface" "$FW_PATH/srcnat.nft" 2>"/dev/null" && continue
-			echo "oifname $iface counter masquerade comment \"!fw4: Masquerade ZeroTier traffic $iface\"" >> "$FW_PATH/srcnat.nft"
-			nft insert rule inet fw4 "srcnat oifname $iface counter masquerade comment \"!fw4: Masquerade ZeroTier traffic $iface\""
-		fi
-		;;
-	s)
-		[ "$(uci -q get zerotier.global.fw_allow_input)" = "1" ] || return 2
+  # 允许伪装（MASQUERADE）
+  if [ "$(uci -q get zerotier."$network_cfg".fw_allow_masq)" = "1" ]; then
+   grep -q "$iface" "$FW_PATH/srcnat.iptables" 2>/dev/null || {
+    echo "iptables -t nat -I POSTROUTING -o $iface -m comment --comment \"!fw3: Masquerade ZeroTier traffic $iface\" -j MASQUERADE" \
+     >> "$FW_PATH/srcnat.iptables"
+    iptables -t nat -I POSTROUTING -o "$iface" \
+     -m comment --comment "!fw3: Masquerade ZeroTier traffic $iface" -j MASQUERADE
+   }
+  fi
+  ;;
+ s)
+  # 全局允许输入服务端口
+  [ "$(uci -q get zerotier.global.fw_allow_input)" = "1" ] || return 2
 
-		wait=0
-		until [ "$wait" -ge "10" ]; do
-			zerotier_info="$(zerotier-cli -j info | jsonfilter -qe "@.config.settings")"
-			[ -n "$zerotier_info" ] && break
-			sleep 2s
-			let wait+=2
-		done
-		[ -n "$zerotier_info" ] || return 1
+  # 等待 ZeroTier 服务启动并获取端口信息
+  wait=0
+  until [ "$wait" -ge 10 ]; do
+   zerotier_info="$(zerotier-cli -j info | jsonfilter -qe "@.config.settings")"
+   [ -n "$zerotier_info" ] && break
+   sleep 2
+   wait=$((wait + 2))
+  done
+  [ -n "$zerotier_info" ] || return 1
 
-		for pp in "primaryPort" "secondaryPort"; do
-			pport="$(echo "$zerotier_info" | jsonfilter -qe "@.$pp")"
-			[ -z "$pport" ] && continue
-			grep -q "$pport" "$FW_PATH/input.nft" 2>"/dev/null" && continue
-			network="udp"
-			[ "$pp" = "primaryPort" ] && network="$network, tcp"
-			echo "meta l4proto { $network } th dport $pport counter accept comment \"!fw4: Accept ZeroTier input $pport ($pp)\"" >> "$FW_PATH/input.nft"
-			nft insert rule inet fw4 "input meta l4proto { $network } th dport $pport counter accept comment \"!fw4: Accept ZeroTier input $pport ($pp)\""
-		done
-		;;
-	*)
-		echo "Usage: $0 -i <interface> | -s"
-		echo "  -i <interface> : Generate rules for the specified interface"
-		echo "  -s             : Generate rules for the zerotier service"
-		return 1
-		;;
-	esac
+  # 为 primaryPort 和 secondaryPort 插入 INPUT 规则
+  for pp in primaryPort secondaryPort; do
+   pport="$(echo "$zerotier_info" | jsonfilter -qe "@.$pp")"
+   [ -z "$pport" ] && continue
+   # 检查是否已添加
+   grep -q "$pport" "$FW_PATH/input.iptables" 2>/dev/null && continue
+
+   if [ "$pp" = "primaryPort" ]; then
+    # 同时允许 UDP 和 TCP
+    echo "iptables -I INPUT -p udp --dport $pport -m comment --comment \"!fw3: Accept ZT udp $pport ($pp)\" -j ACCEPT" \
+     >> "$FW_PATH/input.iptables"
+    echo "iptables -I INPUT -p tcp --dport $pport -m comment --comment \"!fw3: Accept ZT tcp $pport ($pp)\" -j ACCEPT" \
+     >> "$FW_PATH/input.iptables"
+    iptables -I INPUT -p udp --dport "$pport" \
+     -m comment --comment "!fw3: Accept ZT udp $pport ($pp)" -j ACCEPT
+    iptables -I INPUT -p tcp --dport "$pport" \
+     -m comment --comment "!fw3: Accept ZT tcp $pport ($pp)" -j ACCEPT
+   else
+    # secondaryPort 仅允许 UDP
+    echo "iptables -I INPUT -p udp --dport $pport -m comment --comment \"!fw3: Accept ZT udp $pport ($pp)\" -j ACCEPT" \
+     >> "$FW_PATH/input.iptables"
+    iptables -I INPUT -p udp --dport "$pport" \
+     -m comment --comment "!fw3: Accept ZT udp $pport ($pp)" -j ACCEPT
+   fi
+  done
+  ;;
+ *)
+  echo "Usage: $0 -i <interface> | -s"
+  echo "  -i <interface> : Generate rules for the specified interface"
+  echo "  -s             : Generate rules for the zerotier service"
+  return 1
+  ;;
+ esac
 done
