@@ -854,7 +854,7 @@ index 777a1e9..a37a79b 100644
  	int64_t _lastReceive; // direct or indirect
  	int64_t _lastNontrivialReceive; // frames, things like netconf, etc.
 diff --git a/node/SelfAwareness.cpp b/node/SelfAwareness.cpp
-index dab19c6..c75b57d 100644
+index dab19c6..f11d61e 100644
 --- a/node/SelfAwareness.cpp
 +++ b/node/SelfAwareness.cpp
 @@ -53,7 +53,7 @@ private:
@@ -862,7 +862,7 @@ index dab19c6..c75b57d 100644
  SelfAwareness::SelfAwareness(const RuntimeEnvironment *renv) :
  	RR(renv),
 -	_phy(128)
-+	_phy(256)
++	_phy(1024)
  {
  }
  
@@ -929,10 +929,77 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..bd6abce 100644
+index 594ff02..a3e2349 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
-@@ -2572,6 +2572,59 @@ public:
+@@ -841,7 +841,7 @@ public:
+ 	 * destructively with uPnP port mapping behavior in very weird buggy ways.
+ 	 * It's only used if uPnP/NAT-PMP is enabled in this build.
+ 	 */
+-	unsigned int _ports[3];
++	unsigned int _ports[10];
+ 	Binder _binder;
+ 
+ 	// Time we last received a packet from a global address
+@@ -1104,6 +1104,10 @@ public:
+ 					_ports[1] = _secondaryPort;
+ 				} else {
+ 					_ports[1] = _getRandomPort();
++					_ports[3] = _getRandomPort();
++					_ports[5] = _getRandomPort();
++					_ports[7] = _getRandomPort();
++					_ports[9] = _getRandomPort();
+ 				}
+ 			}
+ #ifdef ZT_USE_MINIUPNPC
+@@ -1116,12 +1120,34 @@ public:
+ 				} else {
+ 					_ports[2] = _tertiaryPort = _getRandomPort();
+ 				}
++				
++				_ports[4] = _getRandomPort();
++				_ports[6] = _getRandomPort();
++				_ports[8] = _getRandomPort();
+ 
+ 				if (_ports[2]) {
+ 					char uniqueName[64];
+ 					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[2]);
+ 					_portMapper = new PortMapper(_ports[2],uniqueName);
+ 				}
++				
++				if (_ports[4]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[4]);
++					_portMapper = new PortMapper(_ports[4],uniqueName);
++				}
++				
++				if (_ports[6]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[6]);
++					_portMapper = new PortMapper(_ports[6],uniqueName);
++				}
++				
++				if (_ports[8]) {
++					char uniqueName[64];
++					OSUtils::ztsnprintf(uniqueName,sizeof(uniqueName),"ZeroTier/%.10llx@%u",_node->address(),_ports[8]);
++					_portMapper = new PortMapper(_ports[8],uniqueName);
++				}
+ 			}
+ #endif
+ 
+@@ -1227,9 +1253,9 @@ public:
+ 						}
+ 					}
+ 
+-					unsigned int p[3];
++					unsigned int p[10];
+ 					unsigned int pc = 0;
+-					for(int i=0;i<3;++i) {
++					for(int i=0;i<10;++i) {
+ 						if (_ports[i])
+ 							p[pc++] = _ports[i];
+ 					}
+@@ -2572,6 +2598,59 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -992,7 +1059,7 @@ index 594ff02..bd6abce 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2657,6 +2710,8 @@ public:
+@@ -2657,6 +2736,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
