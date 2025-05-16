@@ -18,3 +18,69 @@
 #
 # Further documentation can be found here:
 # https://openwrt.org/docs/guide-user/network/wan/multiwan/mwan3#alertsnotifications
+
+# 你要处理的接口列表
+WATCHED_INTERFACES="wan wan2 wan3"
+
+# 判断接口是否在列表中
+interface_in_list() {
+  for i in $WATCHED_INTERFACES; do
+    [ "$INTERFACE" = "$i" ] && return 0
+  done
+  return 1
+}
+
+# 核心逻辑
+case "$ACTION" in
+  ifup)
+    interface_in_list && {
+      logger -t mwan3 "$INTERFACE 接口 ifup，重启 myapp"
+      /etc/init.d/turboacc restart
+      /etc/init.d/eqos restart
+      /etc/init.d/sqm restart
+      /etc/init.d/mosdns restart
+      /etc/init.d/shadowsocksr restart
+      /etc/init.d/zerotier restart
+      /etc/init.d/cloudflared restart
+    }
+    ;;
+  ifdown)
+    interface_in_list && {
+      logger -t mwan3 "$INTERFACE 接口 ifdown，重启 myapp"
+      /etc/init.d/turboacc restart
+      /etc/init.d/eqos restart
+      /etc/init.d/sqm restart
+      /etc/init.d/mosdns restart
+      /etc/init.d/shadowsocksr restart
+      /etc/init.d/zerotier restart
+      /etc/init.d/cloudflared restart
+    }
+    ;;
+  connected)
+    interface_in_list && {
+      logger -t mwan3 "$INTERFACE 接口 connected（连通），重启 myapp"
+      /etc/init.d/turboacc restart
+      /etc/init.d/eqos restart
+      /etc/init.d/sqm restart
+      /etc/init.d/mosdns restart
+      /etc/init.d/shadowsocksr restart
+      /etc/init.d/zerotier restart
+      /etc/init.d/cloudflared restart
+    }
+    ;;
+  disconnected)
+    interface_in_list && {
+      logger -t mwan3 "$INTERFACE 接口 disconnected（失联），重启 myapp"
+      /etc/init.d/turboacc restart
+      /etc/init.d/eqos restart
+      /etc/init.d/sqm restart
+      /etc/init.d/mosdns restart
+      /etc/init.d/shadowsocksr restart
+      /etc/init.d/zerotier restart
+      /etc/init.d/cloudflared restart
+    }
+    ;;
+  *)
+    logger -t mwan3 "忽略未知 ACTION=$ACTION 的事件"
+    ;;
+esac
