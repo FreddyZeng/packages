@@ -15,6 +15,10 @@ config interface 'wan2'
     option interval '10'
     option down '3'
     option up '3'
+    option failure_interval '2' # ..................... (...)
+    option recovery_interval '2' # ..................... (...)
+    option force_link '1'  # ...............................................
+
 
 config interface 'wan3'
     option enabled '1'
@@ -28,6 +32,9 @@ config interface 'wan3'
     option interval '10'
     option down '3'
     option up '3'
+    option failure_interval '2' # ..................... (...)
+    option recovery_interval '2' # ..................... (...)
+    option force_link '1'  # ...............................................
 
 config member 'wan2_primary'
     option interface 'wan2'
