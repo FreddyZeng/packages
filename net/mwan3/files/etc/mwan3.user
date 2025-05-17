@@ -35,25 +35,25 @@ case "$ACTION" in
   ifup)
     interface_in_list && {
       logger -t mwan3 "$INTERFACE 接口 ifup，重启 myapp"
-      /etc/init.d/turboacc restart
-      /etc/init.d/eqos restart
-      /etc/init.d/sqm restart
-      /etc/init.d/mosdns restart
-      /etc/init.d/shadowsocksr restart
-      /etc/init.d/zerotier restart
-      /etc/init.d/cloudflared restart
+      #/etc/init.d/turboacc restart
+      #/etc/init.d/eqos restart
+      #/etc/init.d/sqm restart
+      #/etc/init.d/mosdns restart
+      #/etc/init.d/shadowsocksr restart
+      #/etc/init.d/zerotier restart
+      #/etc/init.d/cloudflared restart
     }
     ;;
   ifdown)
     interface_in_list && {
       logger -t mwan3 "$INTERFACE 接口 ifdown，重启 myapp"
-      /etc/init.d/turboacc restart
-      /etc/init.d/eqos restart
-      /etc/init.d/sqm restart
-      /etc/init.d/mosdns restart
-      /etc/init.d/shadowsocksr restart
-      /etc/init.d/zerotier restart
-      /etc/init.d/cloudflared restart
+      #/etc/init.d/turboacc restart
+      #/etc/init.d/eqos restart
+      #/etc/init.d/sqm restart
+      #/etc/init.d/mosdns restart
+      #/etc/init.d/shadowsocksr restart
+      #/etc/init.d/zerotier restart
+      #/etc/init.d/cloudflared restart
     }
     ;;
   connected)
