@@ -48,7 +48,7 @@ endif
 MAKE_FLAGS += \
 	ZT_EMBEDDED=1 \
 	ZT_SSO_SUPPORTED=0 \
-	DEFS="" \
+	DEFS="-DZT_ARCH_ARM_HAS_NEON -DZT_ARCH_ARM_HAS_CRYPTO" \
 	OSTYPE="Linux" \
 
 define Build/Compile
