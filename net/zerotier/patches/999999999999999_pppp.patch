@@ -616,6 +616,19 @@ index 1643487..416250f 100644
  		if (_config) {
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
+diff --git a/node/Node.cpp b/node/Node.cpp
+index 1f377c5..046a47d 100644
+--- a/node/Node.cpp
++++ b/node/Node.cpp
+@@ -402,6 +402,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+ 			// Ping active peers, upstreams, and others that we should always contact
+ 			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
+ 			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
++            
++            // 自定义ping，保持节点高连接？？
+ 
+ 			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
+ 			{
 diff --git a/node/Node.hpp b/node/Node.hpp
 index f9d0548..90ce38f 100644
 --- a/node/Node.hpp
