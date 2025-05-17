@@ -1049,10 +1049,10 @@ mwan3_report_iface_status()
 			error=$((error+2))
 		[ -n "$($IP rule | awk '$1 == "'$((id+3000)):'"')" ] ||
 			error=$((error+4))
-		[ -n "$($IPT -S mwan3_iface_in_$1 2> /dev/null)" ] ||
-			error=$((error+8))
-		[ -n "$($IP route list table $id default dev $device 2> /dev/null)" ] ||
-			error=$((error+16))
+		# [ -n "$($IPT -S mwan3_iface_in_$1 2> /dev/null)" ] ||
+		#	error=$((error+8))
+		# [ -n "$($IP route list table $id default dev $device 2> /dev/null)" ] ||
+		#	error=$((error+16))
 	fi
 
 	if [ "$result" = "offline" ]; then
