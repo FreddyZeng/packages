@@ -48,7 +48,9 @@ endif
 MAKE_FLAGS += \
 	ZT_EMBEDDED=1 \
 	ZT_SSO_SUPPORTED=0 \
-	DEFS="-DZT_ARCH_ARM_HAS_NEON -DZT_ARCH_ARM_HAS_CRYPTO" \
+	ZT_ARCHITECTURE=4 \
+	ZT_USE_X64_ASM_ED25519=0 \
+	DEFS="-DZT_NO_TYPE_PUNNING -DZT_ARCH_ARM_HAS_NEON -DZT_ARCH_ARM_HAS_CRYPTO -march=armv8-a+crypto -mtune=generic -mstrict-align" \
 	OSTYPE="Linux" \
 
 define Build/Compile
