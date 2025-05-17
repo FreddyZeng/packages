@@ -11,10 +11,10 @@ config interface 'wan2'
     list track_ip '223.5.5.5'
     option reliability '1'
     option count '5'
-    option timeout '3'
+    option timeout '5'
     option interval '10'
-    option down '3'
-    option up '3'
+    option down '5'
+    option up '5'
     option failure_interval '2' # ..................... (...)
     option recovery_interval '2' # ..................... (...)
     option force_link '1'  # ...............................................
@@ -28,10 +28,10 @@ config interface 'wan3'
     list track_ip '223.5.5.5'
     option reliability '1'
     option count '5'
-    option timeout '3'
+    option timeout '5'
     option interval '10'
-    option down '3'
-    option up '3'
+    option down '5'
+    option up '5'
     option failure_interval '2' # ..................... (...)
     option recovery_interval '2' # ..................... (...)
     option force_link '1'  # ...............................................
