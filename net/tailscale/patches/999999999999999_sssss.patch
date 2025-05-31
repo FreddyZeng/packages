@@ -1,0 +1,656 @@
+diff --git a/cmd/derper/derper.go b/cmd/derper/derper.go
+index 3c6fda6..acf8da0 100644
+--- a/cmd/derper/derper.go
++++ b/cmd/derper/derper.go
+@@ -61,6 +61,7 @@ var (
+ 	httpPort    = flag.Int("http-port", 80, "The port on which to serve HTTP. Set to -1 to disable. The listener is bound to the same IP (if any) as specified in the -a flag.")
+ 	stunPort    = flag.Int("stun-port", 3478, "The UDP port on which to serve STUN. The listener is bound to the same IP (if any) as specified in the -a flag.")
+ 	configPath  = flag.String("c", "", "config file path")
++    customConfigPath  = flag.String("custom-config-path", "/app/derpCustonConfig/derpCustonConfig.json", "custom config file path")
+ 	certMode    = flag.String("certmode", "letsencrypt", "mode for getting a cert. possible options: manual, letsencrypt")
+ 	certDir     = flag.String("certdir", tsweb.DefaultCertDir("derper-certs"), "directory to store LetsEncrypt certs, if addr's port is :443")
+ 	hostname    = flag.String("hostname", "derp.tailscale.com", "LetsEncrypt host name, if addr's port is :443. When --certmode=manual, this can be an IP address to avoid SNI checks")
+@@ -78,7 +79,7 @@ var (
+ 
+ 	verifyClients   = flag.Bool("verify-clients", false, "verify clients to this DERP server through a local tailscaled instance.")
+ 	verifyClientURL = flag.String("verify-client-url", "", "if non-empty, an admission controller URL for permitting client connections; see tailcfg.DERPAdmitClientRequest")
+-	verifyFailOpen  = flag.Bool("verify-client-url-fail-open", true, "whether we fail open if --verify-client-url is unreachable")
++	verifyFailOpen  = flag.Bool("verify-client-url-fail-open", false, "whether we fail open if --verify-client-url is unreachable")
+ 
+ 	socket = flag.String("socket", "", "optional alternate path to tailscaled socket (only relevant when using --verify-clients)")
+ 
+@@ -113,6 +114,11 @@ type config struct {
+ 	PrivateKey key.NodePrivate
+ }
+ 
++type customConfig struct {
++    PublicKeys []key.NodePublic     `json:"PublicKey"`
++    IsEnableWhiteListClient bool    `json:"IsEnableWhiteListClient"`
++}
++
+ func loadConfig() config {
+ 	if *dev {
+ 		return config{PrivateKey: key.NewNode()}
+@@ -141,6 +147,36 @@ func loadConfig() config {
+ 	}
+ }
+ 
++func loadCustomConfig() customConfig {
++    b, err := os.ReadFile(*customConfigPath)
++    switch {
++    case errors.Is(err, os.ErrNotExist):
++        // 文件不存在，返回空数组，不报错
++        log.Printf("loadCustomConfig: no path %s\n", *customConfigPath)
++        return customConfig{
++            PublicKeys:             []key.NodePublic{},
++            IsEnableWhiteListClient: false,
++        }
++
++    case err != nil:
++        log.Fatal(err)
++        log.Printf("loadCustomConfig: error %s\n", *customConfigPath)
++        panic("unreachable")
++
++    default:
++        var customCFG customConfig
++        
++        if err := json.Unmarshal(b, &customCFG); err != nil {
++            log.Printf("loadCustomConfig: error %s\n", *customConfigPath)
++            log.Fatalf("loadCustomConfig: error %v", err)
++        }
++        
++        log.Printf("loadCustomConfig: suc %s\n", customCFG)
++        
++        return customCFG
++    }
++}
++
+ func writeNewConfig() config {
+ 	k := key.NewNode()
+ 	if err := os.MkdirAll(filepath.Dir(*configPath), 0777); err != nil {
+@@ -194,6 +230,7 @@ func main() {
+ 	}
+ 
+ 	cfg := loadConfig()
++    customCFG := loadCustomConfig()
+ 
+ 	serveTLS := tsweb.IsProd443(*addr) || *certMode == "manual"
+ 
+@@ -201,6 +238,12 @@ func main() {
+ 	s.SetVerifyClient(*verifyClients)
+ 	s.SetTailscaledSocketPath(*socket)
+ 	s.SetVerifyClientURL(*verifyClientURL)
++    
++    log.Printf("customCFG.IsEnableWhiteListClient: %v\n", customCFG.IsEnableWhiteListClient)
++    log.Printf("customCFG.PublicKeys: %s\n", customCFG.PublicKeys)
++    s.SetWhiteListClients(customCFG.PublicKeys)
++    s.SetIsEnableWhiteListClient(customCFG.IsEnableWhiteListClient)
++    
+ 	s.SetVerifyClientURLFailOpen(*verifyFailOpen)
+ 	s.SetTCPWriteTimeout(*tcpWriteTimeout)
+ 
+@@ -258,10 +301,10 @@ func main() {
+ 	}
+ 	expvar.Publish("derp", s.ExpVar())
+ 
+-	handleHome, ok := getHomeHandler(*flagHome)
+-	if !ok {
+-		log.Fatalf("unknown --home value %q", *flagHome)
+-	}
++	// handleHome, ok := getHomeHandler(*flagHome)
++    // if !ok {
++    // 		log.Fatalf("unknown --home value %q", *flagHome)
++    // }
+ 
+ 	mux := http.NewServeMux()
+ 	if *runDERP {
+@@ -283,7 +326,8 @@ func main() {
+ 	mux.HandleFunc("/bootstrap-dns", tsweb.BrowserHeaderHandlerFunc(handleBootstrapDNS))
+ 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		tsweb.AddBrowserHeaders(w)
+-		handleHome.ServeHTTP(w, r)
++        io.WriteString(w, "User-agent: *\nDisallow: /\n")
++		// handleHome.ServeHTTP(w, r)
+ 	}))
+ 	mux.Handle("/robots.txt", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		tsweb.AddBrowserHeaders(w)
+@@ -585,7 +629,7 @@ func getHomeHandler(val string) (_ http.Handler, ok bool) {
+ 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+ 			w.WriteHeader(200)
+ 			err := homePageTemplate.Execute(w, templateData{
+-				ShowAbuseInfo: validProdHostname.MatchString(*hostname),
++                // ShowAbuseInfo: validProdHostname.MatchString(*hostname),
+ 				Disabled:      !*runDERP,
+ 				AllowDebug:    tsweb.AllowDebugAccess(r),
+ 			})
+diff --git a/cmd/tailscaled/tailscaled.go b/cmd/tailscaled/tailscaled.go
+index 237cdfb..e62aa8e 100644
+--- a/cmd/tailscaled/tailscaled.go
++++ b/cmd/tailscaled/tailscaled.go
+@@ -29,6 +29,7 @@ import (
+ 	"strings"
+ 	"syscall"
+ 	"time"
++    "encoding/json"
+ 
+ 	"tailscale.com/client/local"
+ 	"tailscale.com/cmd/tailscaled/childproc"
+@@ -69,6 +70,8 @@ import (
+ 	"tailscale.com/wgengine"
+ 	"tailscale.com/wgengine/netstack"
+ 	"tailscale.com/wgengine/router"
++    "tailscale.com/util/set"
++    "tailscale.com/types/key"
+ )
+ 
+ // defaultTunName returns the default tun device name for the platform.
+@@ -131,6 +134,7 @@ var args struct {
+ 	socksAddr      string // listen address for SOCKS5 server
+ 	httpProxyAddr  string // listen address for HTTP proxy server
+ 	disableLogs    bool
++    customConfFile string
+ }
+ 
+ var (
+@@ -174,6 +178,7 @@ func main() {
+ 	flag.BoolVar(&printVersion, "version", false, "print version information and exit")
+ 	flag.BoolVar(&args.disableLogs, "no-logs-no-support", false, "disable log uploads; this also disables any technical support")
+ 	flag.StringVar(&args.confFile, "config", "", "path to config file, or 'vm:user-data' to use the VM's user-data (EC2)")
++	flag.StringVar(&args.customConfFile, "custom-config", "", "path to custom config file")
+ 
+ 	if len(os.Args) > 0 && filepath.Base(os.Args[0]) == "tailscale" && beCLI != nil {
+ 		beCLI()
+@@ -335,6 +340,12 @@ func ipnServerOpts() (o serverOptions) {
+ 
+ var logPol *logpolicy.Policy
+ var debugMux *http.ServeMux
++var whitePublicKeyNodes = set.Set[key.NodePublic]{}
++
++type WhiteListConfig struct {
++    PublicKey              set.Set[key.NodePublic] `json:"PublicKey"`
++    IsEnableWhiteListClient bool     `json:"IsEnableWhiteListClient"`
++}
+ 
+ func run() (err error) {
+ 	var logf logger.Logf = log.Printf
+@@ -350,6 +361,28 @@ func run() (err error) {
+ 		}
+ 		sys.InitialConfig = conf
+ 	}
++	
++    log.Printf("白名单路径: %s", args.customConfFile)
++	if args.customConfFile != "" {
++        data, err := os.ReadFile(args.customConfFile)
++        
++        if err != nil {
++            log.Printf("白名单路径: 错误 %s", args.customConfFile)
++        }
++
++        var cfg WhiteListConfig
++        if err := json.Unmarshal(data, &cfg); err != nil {
++            log.Printf("白名单json 解释错误: %s", err)
++        }
++        
++        if cfg.IsEnableWhiteListClient {
++            whitePublicKeyNodes = cfg.PublicKey
++            
++            log.Printf("白名单开启: %s", whitePublicKeyNodes)
++        } else {
++            log.Printf("白名单关闭，关闭不能使用: %s", whitePublicKeyNodes)
++        }
++	}
+ 
+ 	var netMon *netmon.Monitor
+ 	isWinSvc := isWindowsService()
+@@ -490,7 +523,12 @@ func startIPNServer(ctx context.Context, logf logger.Logf, logID logid.PublicID,
+ 		if err == nil {
+ 			logf("got LocalBackend in %v", time.Since(t0).Round(time.Millisecond))
+ 			if lb.Prefs().Valid() {
+-				if err := lb.Start(ipn.Options{}); err != nil {
++                
++                logf("白名单  LocalBackend.Start: %s", whitePublicKeyNodes)
++                
++				if err := lb.Start(ipn.Options{
++                    WhitePublicKeyNodes: whitePublicKeyNodes,
++                }); err != nil {
+ 					logf("LocalBackend.Start: %v", err)
+ 					lb.Shutdown()
+ 					lbErr.Store(err)
+@@ -610,7 +648,8 @@ func getLocalBackend(ctx context.Context, logf logger.Logf, logID logid.PublicID
+ 		w.Start()
+ 	}
+ 
+-	lb, err := ipnlocal.NewLocalBackend(logf, logID, sys, opts.LoginFlags)
++    log.Printf("白名单传值: %s", whitePublicKeyNodes)
++	lb, err := ipnlocal.NewLocalBackend(logf, logID, sys, opts.LoginFlags, whitePublicKeyNodes)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("ipnlocal.NewLocalBackend: %w", err)
+ 	}
+diff --git a/control/controlclient/auto.go b/control/controlclient/auto.go
+index e0168c1..1711111 100644
+--- a/control/controlclient/auto.go
++++ b/control/controlclient/auto.go
+@@ -152,7 +152,9 @@ type Auto struct {
+ }
+ 
+ // New creates and starts a new Auto.
++// 真实入口的初始化
+ func New(opts Options) (*Auto, error) {
++    opts.Logf("白名单 New: %s", opts.WhitePublicKeyNodes)
+ 	c, err := NewNoStart(opts)
+ 	if c != nil {
+ 		c.Start()
+@@ -162,6 +164,9 @@ func New(opts Options) (*Auto, error) {
+ 
+ // NewNoStart creates a new Auto, but without calling Start on it.
+ func NewNoStart(opts Options) (_ *Auto, err error) {
++    
++    opts.Logf("白名单 NewNoStart: %s", opts.WhitePublicKeyNodes)
++
+ 	direct, err := NewDirect(opts)
+ 	if err != nil {
+ 		return nil, err
+diff --git a/control/controlclient/direct.go b/control/controlclient/direct.go
+index 68ab9ca..613976a 100644
+--- a/control/controlclient/direct.go
++++ b/control/controlclient/direct.go
+@@ -57,6 +57,7 @@ import (
+ 	"tailscale.com/util/systemd"
+ 	"tailscale.com/util/testenv"
+ 	"tailscale.com/util/zstdframe"
++    "tailscale.com/util/set"
+ )
+ 
+ // Direct is the client that connects to a tailcontrol server for a node.
+@@ -103,6 +104,7 @@ type Direct struct {
+ 	endpoints    []tailcfg.Endpoint
+ 	tkaHead      string
+ 	lastPingURL  string // last PingRequest.URL received, for dup suppression
++    whitePublicKeyNodes  set.Set[key.NodePublic]
+ }
+ 
+ // Observer is implemented by users of the control client (such as LocalBackend)
+@@ -156,6 +158,8 @@ type Options struct {
+ 	// If we receive a new DialPlan from the server, this value will be
+ 	// updated.
+ 	DialPlan ControlDialPlanner
++    
++    WhitePublicKeyNodes set.Set[key.NodePublic]
+ 
+ 	// Shutdown is an optional function that will be called before client shutdown is
+ 	// attempted. It is used to allow the client to clean up any resources or complete any
+@@ -215,6 +219,7 @@ type NetmapDeltaUpdater interface {
+ 
+ // NewDirect returns a new Direct client.
+ func NewDirect(opts Options) (*Direct, error) {
++	
+ 	if opts.ServerURL == "" {
+ 		return nil, errors.New("controlclient.New: no server URL specified")
+ 	}
+@@ -284,6 +289,8 @@ func NewDirect(opts Options) (*Direct, error) {
+ 
+ 		httpc = &http.Client{Transport: tr}
+ 	}
++    
++    opts.Logf("白名单传值-Direct: %s", opts.WhitePublicKeyNodes)
+ 
+ 	c := &Direct{
+ 		httpc:                      httpc,
+@@ -309,6 +316,7 @@ func NewDirect(opts Options) (*Direct, error) {
+ 		dialer:                     opts.Dialer,
+ 		dnsCache:                   dnsCache,
+ 		dialPlan:                   opts.DialPlan,
++        whitePublicKeyNodes:        opts.WhitePublicKeyNodes,
+ 	}
+ 	c.closedCtx, c.closeCtx = context.WithCancel(context.Background())
+ 
+@@ -1115,7 +1123,8 @@ func (c *Direct) sendMapRequest(ctx context.Context, isStreaming bool, nu Netmap
+ 		}
+ 		gotNonKeepAliveMessage = true
+ 
+-		if err := sess.HandleNonKeepAliveMapResponse(ctx, &resp); err != nil {
++
++		if err := sess.HandleNonKeepAliveMapResponse(ctx, &resp, c.whitePublicKeyNodes); err != nil {
+ 			return err
+ 		}
+ 	}
+diff --git a/control/controlclient/map.go b/control/controlclient/map.go
+index 769c8f1..14add36 100644
+--- a/control/controlclient/map.go
++++ b/control/controlclient/map.go
+@@ -138,6 +138,7 @@ func (ms *mapSession) Close() {
+ 	ms.sessionAliveCtxClose()
+ }
+ 
++
+ // HandleNonKeepAliveMapResponse handles a non-KeepAlive MapResponse (full or
+ // incremental).
+ //
+@@ -146,7 +147,7 @@ func (ms *mapSession) Close() {
+ //
+ // TODO(bradfitz): make this handle all fields later. For now (2023-08-20) this
+ // is [re]factoring progress enough.
+-func (ms *mapSession) HandleNonKeepAliveMapResponse(ctx context.Context, resp *tailcfg.MapResponse) error {
++func (ms *mapSession) HandleNonKeepAliveMapResponse(ctx context.Context, resp *tailcfg.MapResponse,     whitePublicKeyNodes set.Set[key.NodePublic]) error {
+ 	if debug := resp.Debug; debug != nil {
+ 		if err := ms.onDebug(ctx, debug); err != nil {
+ 			return err
+@@ -210,6 +211,31 @@ func (ms *mapSession) HandleNonKeepAliveMapResponse(ctx context.Context, resp *t
+ 	}
+ 
+ 	nm := ms.netmap()
++
++
++    
++    
++    if len(whitePublicKeyNodes) > 0 {
++        ms.logf("已经开启白名单\n")
++        
++        var filteredPeers []tailcfg.NodeView
++        
++        ms.logf("白名单之前前的值: %s\n", whitePublicKeyNodes)
++        
++        for _, peer := range nm.Peers {
++            if !whitePublicKeyNodes.Contains(peer.Key()) {
++                ms.logf("跳过这个key: %s\n", peer.Key())
++                continue
++            }
++            filteredPeers = append(filteredPeers, peer)
++        }
++
++        nm.Peers = filteredPeers
++    } else {
++        ms.logf("没有开启白名单\n")
++    }
++
++
+ 	ms.lastNetmapSummary = nm.VeryConcise()
+ 	ms.occasionallyPrintSummary(ms.lastNetmapSummary)
+ 
+diff --git a/derp/derp_server.go b/derp/derp_server.go
+index c330572..fd165c3 100644
+--- a/derp/derp_server.go
++++ b/derp/derp_server.go
+@@ -179,6 +179,9 @@ type Server struct {
+ 
+ 	verifyClientsURL         string
+ 	verifyClientsURLFailOpen bool
++    whiteListClients         []key.NodePublic
++    isEnableWhiteListClient bool
++    
+ 
+ 	mu       sync.Mutex
+ 	closed   bool
+@@ -486,6 +489,14 @@ func (s *Server) SetVerifyClientURLFailOpen(v bool) {
+ 	s.verifyClientsURLFailOpen = v
+ }
+ 
++func (s *Server) SetWhiteListClients(v []key.NodePublic) {
++    s.whiteListClients = v
++}
++
++func (s *Server) SetIsEnableWhiteListClient(v bool) {
++    s.isEnableWhiteListClient = v
++}
++
+ // SetTailscaledSocketPath sets the unix socket path to use to talk to
+ // tailscaled if client verification is enabled.
+ //
+@@ -899,7 +910,6 @@ func (s *Server) accept(ctx context.Context, nc Conn, brw *bufio.ReadWriter, rem
+ 	if err != nil {
+ 		return fmt.Errorf("receive client key: %v", err)
+ 	}
+-
+ 	remoteIPPort, _ := netip.ParseAddrPort(remoteAddr)
+ 	if err := s.verifyClient(ctx, clientKey, clientInfo, remoteIPPort.Addr()); err != nil {
+ 		return fmt.Errorf("client %v rejected: %v", clientKey, err)
+@@ -1340,6 +1350,20 @@ func (s *Server) isMeshPeer(info *clientInfo) bool {
+ // verifyClient checks whether the client is allowed to connect to the derper,
+ // depending on how & whether the server's been configured to verify.
+ func (s *Server) verifyClient(ctx context.Context, clientKey key.NodePublic, info *clientInfo, clientIP netip.Addr) error {
++    
++    if s.isEnableWhiteListClient {
++        allowed := false
++        for _, item := range s.whiteListClients {
++            if item == clientKey {
++                allowed = true
++                break
++            }
++        }
++        if !allowed {
++            return fmt.Errorf("admission controller: %v/%v not allowed", clientKey, clientIP)
++        }
++    }
++    
+ 	if s.isMeshPeer(info) {
+ 		// Trusted mesh peer. No need to verify further. In fact, verifying
+ 		// further wouldn't work: it's not part of the tailnet so tailscaled and
+diff --git a/ipn/backend.go b/ipn/backend.go
+index 3e956f4..f4aae02 100644
+--- a/ipn/backend.go
++++ b/ipn/backend.go
+@@ -17,6 +17,7 @@ import (
+ 	"tailscale.com/types/netmap"
+ 	"tailscale.com/types/structs"
+ 	"tailscale.com/types/views"
++    "tailscale.com/util/set"
+ )
+ 
+ type State int
+@@ -257,4 +258,6 @@ type Options struct {
+ 	// AuthKey is an optional node auth key used to authorize a
+ 	// new node key without user interaction.
+ 	AuthKey string
++    
++    WhitePublicKeyNodes set.Set[key.NodePublic]
+ }
+diff --git a/ipn/ipnlocal/local.go b/ipn/ipnlocal/local.go
+index 11da8c7..6e049b9 100644
+--- a/ipn/ipnlocal/local.go
++++ b/ipn/ipnlocal/local.go
+@@ -497,7 +497,7 @@ type clientGen func(controlclient.Options) (controlclient.Client, error)
+ // but is not actually running.
+ //
+ // If dialer is nil, a new one is made.
+-func NewLocalBackend(logf logger.Logf, logID logid.PublicID, sys *tsd.System, loginFlags controlclient.LoginFlags) (_ *LocalBackend, err error) {
++func NewLocalBackend(logf logger.Logf, logID logid.PublicID, sys *tsd.System, loginFlags controlclient.LoginFlags, whitePublicKeyNodes set.Set[key.NodePublic]) (_ *LocalBackend, err error) {
+ 	e := sys.Engine.Get()
+ 	store := sys.StateStore.Get()
+ 	dialer := sys.Dialer.Get()
+@@ -1590,6 +1590,7 @@ func (b *LocalBackend) SetControlClientStatus(c controlclient.Client, st control
+ 
+ 	wasBlocked := b.blocked
+ 	keyExpiryExtended := false
++	
+ 	if st.NetMap != nil {
+ 		wasExpired := b.keyExpired
+ 		isExpired := !st.NetMap.Expiry.IsZero() && st.NetMap.Expiry.Before(b.clock.Now())
+@@ -2264,6 +2265,8 @@ func (b *LocalBackend) getNewControlClientFuncLocked() clientGen {
+ 		// default to make any future call to
+ 		// SetControlClientGetterForTesting panic.
+ 		b.ccGen = func(opts controlclient.Options) (controlclient.Client, error) {
++			// 创建客户端, 再传入客户端的参数.真实的入口
++            opts.Logf("白名单 controlclient.New : %s", opts.WhitePublicKeyNodes)
+ 			return controlclient.New(opts)
+ 		}
+ 	}
+@@ -2426,11 +2429,12 @@ func (b *LocalBackend) Start(opts ipn.Options) error {
+ 	// re-run b.Start, because this is the only place we create a
+ 	// new controlclient. EditPrefs allows you to overwrite ServerURL,
+ 	// but it won't take effect until the next Start.
++	// 传值的好位置
+ 	cc, err := b.getNewControlClientFuncLocked()(controlclient.Options{
+ 		GetMachinePrivateKey:       b.createGetMachinePrivateKeyFunc(),
+ 		Logf:                       logger.WithPrefix(b.logf, "control: "),
+ 		Persist:                    *persistv,
+-		ServerURL:                  serverURL,
++		ServerURL:                  serverURL, // 查找进程通讯
+ 		AuthKey:                    opts.AuthKey,
+ 		Hostinfo:                   hostinfo,
+ 		HTTPTestClient:             httpTestClient,
+@@ -2452,6 +2456,7 @@ func (b *LocalBackend) Start(opts ipn.Options) error {
+ 		// Don't warn about broken Linux IP forwarding when
+ 		// netstack is being used.
+ 		SkipIPForwardingCheck: isNetstack,
++        WhitePublicKeyNodes: opts.WhitePublicKeyNodes,
+ 	})
+ 	if err != nil {
+ 		return err
+@@ -5929,6 +5934,8 @@ var _ auditlog.Transport = (*controlclient.Auto)(nil)
+ //
+ // b.mu must be held.
+ func (b *LocalBackend) setControlClientLocked(cc controlclient.Client) {
++	
++	// 传值的好位置
+ 	b.cc = cc
+ 	b.ccAuto, _ = cc.(*controlclient.Auto)
+ 	if t, ok := b.cc.(auditlog.Transport); ok && b.auditLogger != nil {
+@@ -6155,6 +6162,7 @@ func (b *LocalBackend) setAutoExitNodeIDLockedOnEntry(unlock unlockOnce) (newPre
+ 	return newPrefs
+ }
+ 
++// NetworkMap data
+ // setNetMapLocked updates the LocalBackend state to reflect the newly
+ // received nm. If nm is nil, it resets all configuration as though
+ // Tailscale is turned off.
+diff --git a/net/stun/stun.go b/net/stun/stun.go
+index eeac23c..352965c 100644
+--- a/net/stun/stun.go
++++ b/net/stun/stun.go
+@@ -27,6 +27,7 @@ const (
+ 	attrXorMappedAddressAlt = 0x8020
+ 
+ 	software       = "tailnode" // notably: 8 bytes long, so no padding
++    softwareCustom       = "tailnodecustomts" // notably: 8 bytes long, so no padding
+ 	bindingRequest = "\x00\x01"
+ 	magicCookie    = "\x21\x12\xa4\x42"
+ 	lenFingerprint = 8 // 2+byte header + 2-byte length + 4-byte crc32
+diff --git a/net/stunserver/stunserver.go b/net/stunserver/stunserver.go
+index b45bb63..f999e14 100644
+--- a/net/stunserver/stunserver.go
++++ b/net/stunserver/stunserver.go
+@@ -88,19 +88,25 @@ func (s *STUNServer) Serve() error {
+ 		}
+ 		pkt := buf[:n]
+ 		if !stun.Is(pkt) {
++            // ✅ 第一个处理：是否是 STUN 报文
+ 			stunNotSTUN.Add(1)
+ 			continue
+ 		}
+ 		txid, err := stun.ParseBindingRequest(pkt)
+ 		if err != nil {
++            // ✅ 第二个处理：是否是合法 STUN Binding Request
+ 			stunNotSTUN.Add(1)
+ 			continue
+ 		}
++        
++        // ✅ 第三个处理：记录地址族
+ 		if ua.IP.To4() != nil {
+ 			stunIPv4.Add(1)
+ 		} else {
+ 			stunIPv6.Add(1)
+ 		}
++        
++        // ✅ 第四个处理：构造 STUN 响应并写回客户端
+ 		addr, _ := netip.AddrFromSlice(ua.IP)
+ 		res := stun.Response(txid, netip.AddrPortFrom(addr, uint16(ua.Port)))
+ 		_, err = s.pc.WriteTo(res, ua)
+diff --git a/tailcfg/derpmap.go b/tailcfg/derpmap.go
+index e05559f..1793179 100644
+--- a/tailcfg/derpmap.go
++++ b/tailcfg/derpmap.go
+@@ -135,6 +135,10 @@ type DERPRegion struct {
+ 	// things are healthy), the inter-cluster routing is minimal
+ 	// to zero.
+ 	Nodes []*DERPNode
++    
++    IsCustomDERPRegion bool `json:",omitempty"`
++    
++    IsConfigTailScaleDERPNodeAllSTUNOnly bool `json:",omitempty"`
+ }
+ 
+ // DERPNode describes a DERP packet relay node running within a DERPRegion.
+@@ -207,6 +211,9 @@ type DERPNode struct {
+ 	// CanPort80 specifies whether this DERP node is accessible over HTTP
+ 	// on port 80 specifically. This is used for captive portal checks.
+ 	CanPort80 bool `json:",omitempty"`
++    
++    
++    IsCustomDERPNode bool `json:",omitempty"`
+ }
+ 
+ func (n *DERPNode) IsTestNode() bool {
+diff --git a/tailcfg/tailcfg.go b/tailcfg/tailcfg.go
+index 83fab9c..5e6385e 100644
+--- a/tailcfg/tailcfg.go
++++ b/tailcfg/tailcfg.go
+@@ -311,6 +311,7 @@ func MarshalCapJSON[T any](capRule T) (RawMessage, error) {
+ 	return RawMessage(string(bs)), nil
+ }
+ 
++// peer
+ // Node is a Tailscale device in a tailnet.
+ type Node struct {
+ 	ID       NodeID
+diff --git a/tailcfg/tailcfg_clone.go b/tailcfg/tailcfg_clone.go
+index da1f4f3..5050a1f 100644
+--- a/tailcfg/tailcfg_clone.go
++++ b/tailcfg/tailcfg_clone.go
+@@ -424,6 +424,8 @@ var _DERPRegionCloneNeedsRegeneration = DERPRegion(struct {
+ 	Avoid           bool
+ 	NoMeasureNoHome bool
+ 	Nodes           []*DERPNode
++    IsCustomDERPRegion bool
++    IsConfigTailScaleDERPNodeAllSTUNOnly bool
+ }{})
+ 
+ // Clone makes a deep copy of DERPMap.
+@@ -480,6 +482,7 @@ var _DERPNodeCloneNeedsRegeneration = DERPNode(struct {
+ 	InsecureForTests bool
+ 	STUNTestIP       string
+ 	CanPort80        bool
++    IsCustomDERPNode bool
+ }{})
+ 
+ // Clone makes a deep copy of SSHRule.
+diff --git a/tailcfg/tailcfg_view.go b/tailcfg/tailcfg_view.go
+index b1aacab..2c8d328 100644
+--- a/tailcfg/tailcfg_view.go
++++ b/tailcfg/tailcfg_view.go
+@@ -84,6 +84,7 @@ func (p *Node) View() NodeView {
+ 	return NodeView{ж: p}
+ }
+ 
++// peer
+ // NodeView provides a read-only view over Node.
+ //
+ // Its methods should only be called if `Valid()` returns true.
+@@ -901,6 +902,8 @@ var _DERPRegionViewNeedsRegeneration = DERPRegion(struct {
+ 	Avoid           bool
+ 	NoMeasureNoHome bool
+ 	Nodes           []*DERPNode
++    IsCustomDERPRegion bool
++    IsConfigTailScaleDERPNodeAllSTUNOnly bool
+ }{})
+ 
+ // View returns a read-only view of DERPMap.
+@@ -1036,6 +1039,7 @@ var _DERPNodeViewNeedsRegeneration = DERPNode(struct {
+ 	InsecureForTests bool
+ 	STUNTestIP       string
+ 	CanPort80        bool
++    IsCustomDERPNode bool
+ }{})
+ 
+ // View returns a read-only view of SSHRule.
+diff --git a/types/netmap/netmap.go b/types/netmap/netmap.go
+index b1eecaa..bbc5228 100644
+--- a/types/netmap/netmap.go
++++ b/types/netmap/netmap.go
+@@ -21,6 +21,7 @@ import (
+ 	"tailscale.com/wgengine/filter/filtertype"
+ )
+ 
++// NetworkMap data
+ // NetworkMap is the current state of the world.
+ //
+ // The fields should all be considered read-only. They might
