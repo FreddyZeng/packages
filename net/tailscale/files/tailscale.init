@@ -34,6 +34,7 @@ start_service() {
   # settings.
   procd_append_param command --port "$port"
   procd_append_param command --state "$state_file"
+  procd_append_param command --custom-config "/etc/tailscale/whitePublicKeyNodes.json"
 
   procd_set_param respawn
   procd_set_param stdout "$std_out"
