@@ -954,7 +954,7 @@ index d6167ce..e4ef069 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..c07e688 100644
+index f77b4e6..a39f181 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1057,26 +1057,15 @@ index f77b4e6..c07e688 100644
  void Peer::received(
  	void *tPtr,
  	const SharedPtr<Path> &path,
-@@ -109,7 +188,7 @@ void Peer::received(
- 		path->trustedPacketReceived(now);
- 	}
- 
--	if (hops == 0) {
-+	if (hops == 0 || path->isTCPPacket()) {
- 		// If this is a direct packet (no hops), update existing paths or learn new ones
- 		bool havePath = false;
- 		{
-@@ -206,8 +285,8 @@ void Peer::received(
+@@ -206,7 +285,7 @@ void Peer::received(
  	if (this->trustEstablished(now)) {
  		const int64_t sinceLastPush = now - _lastDirectPathPushSent;
  		bool lowBandwidth = RR->node->lowBandwidthModeEnabled();
 -		int timerScale = lowBandwidth ? 16 : 1;
--		if (sinceLastPush >= ((hops == 0) ? ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH * timerScale : ZT_DIRECT_PATH_PUSH_INTERVAL)) {
 +		int timerScale = lowBandwidth ? 4 : 1;
-+		if (sinceLastPush >= ((hops == 0 || path->isTCPPacket()) ? ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH * timerScale : ZT_DIRECT_PATH_PUSH_INTERVAL)) {
+ 		if (sinceLastPush >= ((hops == 0) ? ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH * timerScale : ZT_DIRECT_PATH_PUSH_INTERVAL)) {
  			_lastDirectPathPushSent = now;
  			std::vector<InetAddress> pathsToPush(RR->node->directPaths());
- 			std::vector<InetAddress> ma = RR->sa->whoami();
 @@ -256,6 +335,7 @@ void Peer::received(
  	}
  }
@@ -1393,6 +1382,19 @@ index fc272ce..91fb136 100644
  				}
  			}
  		}
+diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
+index 23e6393..8f6e83d 100644
+--- a/osdep/Binder.hpp
++++ b/osdep/Binder.hpp
+@@ -63,7 +63,7 @@
+ #include <vector>
+ 
+ // Period between refreshes of bindings
+-#define ZT_BINDER_REFRESH_PERIOD 30000
++#define ZT_BINDER_REFRESH_PERIOD 15000
+ 
+ // Max number of bindings
+ #define ZT_BINDER_MAX_BINDINGS 256
 diff --git a/osdep/Phy.hpp b/osdep/Phy.hpp
 index 14cf92c..98e8c88 100644
 --- a/osdep/Phy.hpp
@@ -1422,7 +1424,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..ecf4bca 100644
+index 594ff02..f772e11 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1649,19 +1651,19 @@ index 594ff02..ecf4bca 100644
 +			
 +//			bool isTCPRelay = (bool)Phy<OneServiceImpl *>::isTCPRelay(sock);
 +			
-+			const InetAddress relayAddr(_fallbackRelayAddress);
++//			const InetAddress relayAddr(_fallbackRelayAddress);
 +			
-+			char addressBuf[64];
-+			char *ipAndPort = tc->remoteAddr.toString(addressBuf);
++//			char addressBuf[64];
++//			char *ipAndPort = tc->remoteAddr.toString(addressBuf);
 +//			fprintf(stderr, "创建新的_tcpFallbackTunnel, remoteAddr为%s:\n", ipAndPort);
 +			
-+			if (tc->remoteAddr == relayAddr) {
-+				Phy<OneServiceImpl *>::setTCPRelay(sock, true);
-+			}
++//			if (tc->remoteAddr == relayAddr) {
++//				Phy<OneServiceImpl *>::setTCPRelay(sock, true);
++//			}
 +			
 +			if (_tcpFallbackTunnel) {
-+				char addressBuf[64];
-+				char *ipAndPort = _tcpFallbackTunnel->remoteAddr.toString(addressBuf);
++//				char addressBuf[64];
++//				char *ipAndPort = _tcpFallbackTunnel->remoteAddr.toString(addressBuf);
 +//				fprintf(stderr, "关闭旧的_tcpFallbackTunnel, remoteAddr为%s:\n", ipAndPort);
 +				
  				_phy.close(_tcpFallbackTunnel->sock);
@@ -1682,8 +1684,8 @@ index 594ff02..ecf4bca 100644
  			tc->parser.data = (void *)tc;
  			tc->messageSize = 0;
 +			
-+			char addressBuf[64];
-+			char *ipAndPort = tc->remoteAddr.toString(addressBuf);
++//			char addressBuf[64];
++//			char *ipAndPort = tc->remoteAddr.toString(addressBuf);
 +//			fprintf(stderr, "phyOnTcpAccept remoteAddr为%s:\n", ipAndPort);
  
  			*uptrN = (void *)tc;
@@ -1693,8 +1695,8 @@ index 594ff02..ecf4bca 100644
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
 +				
-+				char addressBuf[64];
-+				char *ipAndPort = tc->remoteAddr.toString(addressBuf);
++//				char addressBuf[64];
++//				char *ipAndPort = tc->remoteAddr.toString(addressBuf);
 +//				fprintf(stderr, "phyOnTcpClose remoteAddr为%s:\n", ipAndPort);
 +				
  				_tcpFallbackTunnel = (TcpConnection *)0;
@@ -1714,8 +1716,8 @@ index 594ff02..ecf4bca 100644
  
  								if (from) {
 +									
-+									char addressBuf[64];
-+									char *ipAndPort = from.toString(addressBuf);
++//									char addressBuf[64];
++//									char *ipAndPort = from.toString(addressBuf);
 +//									fprintf(stderr, "phyOnTcpData from Addr为%s:\n", ipAndPort);
 +									
  									InetAddress fakeTcpLocalInterfaceAddress((uint32_t)0xffffffff,0xffff);
@@ -1826,7 +1828,7 @@ index 594ff02..ecf4bca 100644
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeVirtualNetworkFrameFunction(nwid,nuptr,sourceMac,destMac,etherType,vlanId,data,len); }
  static int SnodePathCheckFunction(ZT_Node *node,void *uptr,void *tptr,uint64_t ztaddr,int64_t localSocket,const struct sockaddr_storage *remoteAddr)
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
-index 44bc5ea..d0c523e 100644
+index 44bc5ea..3f2a7ef 100644
 --- a/tcp-proxy/tcp-proxy.cpp
 +++ b/tcp-proxy/tcp-proxy.cpp
 @@ -45,8 +45,8 @@
@@ -1835,7 +1837,7 @@ index 44bc5ea..d0c523e 100644
  
 -#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
 -#define ZT_TCP_PROXY_TCP_PORT 443
-+#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 30
++#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 15
 +#define ZT_TCP_PROXY_TCP_PORT 58443
  
  using namespace ZeroTier;
@@ -1854,10 +1856,10 @@ index 44bc5ea..d0c523e 100644
  	time_t lastDidHousekeeping = time((time_t *)0);
  	for(;;) {
 -		phy.poll(120000);
-+		phy.poll(30000);
++		phy.poll(10000);
  		time_t now = time((time_t *)0);
 -		if ((now - lastDidHousekeeping) > 120) {
-+		if ((now - lastDidHousekeeping) > 30) {
++		if ((now - lastDidHousekeeping) > 10) {
  			lastDidHousekeeping = now;
  			svc.doHousekeeping();
  		}
