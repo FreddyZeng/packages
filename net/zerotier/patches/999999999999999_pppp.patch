@@ -1460,7 +1460,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..ace3c7a 100644
+index 594ff02..2855cb0 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1792,7 +1792,7 @@ index 594ff02..ace3c7a 100644
 +				
 +				bool forceSendByTCP = false;
 +				
-+				SharedPtr<Peer> peer(_node->RR->topology->getPeerNoCache(path->address()));
++				SharedPtr<Peer> peer(_node->RR->topology->getPeerNoCache(path->peerAddress()));
 +				
 +				if (peer) {
 +					unsigned int late = peer->latency(_node->now());
