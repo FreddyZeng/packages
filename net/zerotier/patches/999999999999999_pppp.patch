@@ -46,7 +46,7 @@ index ba16278..c160daa 100644
          LOGE("Exception calling ZT_Node_processWirePacket");
          free(localData);
 diff --git a/node/Bond.cpp b/node/Bond.cpp
-index 2a06179..4231bac 100644
+index 2a06179..5de4427 100644
 --- a/node/Bond.cpp
 +++ b/node/Bond.cpp
 @@ -855,7 +855,20 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
@@ -56,17 +56,17 @@ index 2a06179..4231bac 100644
 -		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size());
 +		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, false);
 +		
-+		// 1. 【深拷贝】创建一个完全独立的副本
-+		Packet tcpOutp = outp;
-+
-+		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+		uint64_t tcpId;
-+		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+		
-+		tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
-+		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
++//		// 1. 【深拷贝】创建一个完全独立的副本
++//		Packet tcpOutp = outp;
++//
++//		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//		uint64_t tcpId;
++//		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//		
++//		tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
++//		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
 +		
  		_overheadBytes += outp.size();
  	}
@@ -78,17 +78,17 @@ index 2a06179..4231bac 100644
 -			RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size());
 +			RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, false);
 +			
-+			// 1. 【深拷贝】创建一个完全独立的副本
-+			Packet tcpOutp = outp;
-+
-+			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+			uint64_t tcpId;
-+			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+			tcpOutp.setAt<uint64_t>(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+			
-+			tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
-+			RR->node->putPacket(tPtr, localSocket, atAddress, tcpOutp.data(), tcpOutp.size(), 0, true);
++//			// 1. 【深拷贝】创建一个完全独立的副本
++//			Packet tcpOutp = outp;
++//
++//			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//			uint64_t tcpId;
++//			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//			tcpOutp.setAt<uint64_t>(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//			
++//			tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
++//			RR->node->putPacket(tPtr, localSocket, atAddress, tcpOutp.data(), tcpOutp.size(), 0, true);
  		}
  		else {
  			RR->sw->send(tPtr, outp, false);
@@ -99,18 +99,18 @@ index 2a06179..4231bac 100644
 -						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size());
 +						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, false);
 +						
-+						// 1. 【深拷贝】创建一个完全独立的副本
-+						Packet tcpOutp = outp;
-+
-+						// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+						uint64_t tcpId;
-+						Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+						// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+						tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+						
-+						tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
-+						RR->node->expectReplyTo(tcpOutp.packetId());
-+						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
++//						// 1. 【深拷贝】创建一个完全独立的副本
++//						Packet tcpOutp = outp;
++//
++//						// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//						uint64_t tcpId;
++//						Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//						// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//						tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//						
++//						tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
++//						RR->node->expectReplyTo(tcpOutp.packetId());
++//						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
 +						
 +						
  						_paths[i].p->_lastOut = now;
@@ -908,10 +908,18 @@ index 00ea90f..7f418a9 100644
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..e4ef069 100644
+index d6167ce..488a739 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
-@@ -99,7 +99,8 @@ public:
+@@ -28,6 +28,7 @@
+ #include "Utils.hpp"
+ #include "Packet.hpp"
+ #include "RingBuffer.hpp"
++#include "Address.hpp"
+ 
+ /**
+  * Maximum return value of preferenceRank()
+@@ -99,7 +100,8 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(),
@@ -921,7 +929,7 @@ index d6167ce..e4ef069 100644
  		{}
  
  	Path(const int64_t localSocket,const InetAddress &addr) :
-@@ -122,7 +123,8 @@ public:
+@@ -122,7 +124,8 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(addr),
@@ -931,7 +939,7 @@ index d6167ce..e4ef069 100644
  	{}
  
  	/**
-@@ -371,6 +373,12 @@ public:
+@@ -371,6 +374,20 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -941,20 +949,29 @@ index d6167ce..e4ef069 100644
 +	}
 +	
 +	inline void setTCPPacket(bool isTCPPacket) { _isTCPPacket = isTCPPacket; }
++	
++	inline void setPeerAddress(const Address &newAddress)
++	{
++		// 调用 Address 类的赋值运算符 (operator=)
++		_peerAddress = newAddress;
++	}
++	
++	inline const Address &peerAddress() const { return _peerAddress; }
  
  private:
  
-@@ -401,6 +409,8 @@ private:
+@@ -401,6 +418,9 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
 +	
 +	bool _isTCPPacket;
++	Address _peerAddress;
  };
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..a39f181 100644
+index f77b4e6..630e8cb 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1057,7 +1074,17 @@ index f77b4e6..a39f181 100644
  void Peer::received(
  	void *tPtr,
  	const SharedPtr<Path> &path,
-@@ -206,7 +285,7 @@ void Peer::received(
+@@ -167,6 +246,9 @@ void Peer::received(
+ 				replacePath = (replacePath == ZT_MAX_PEER_NETWORK_PATHS) ? oldestPathIdx : replacePath;
+ 				if (replacePath != ZT_MAX_PEER_NETWORK_PATHS) {
+ 					RR->t->peerLearnedNewPath(tPtr, networkId, *this, path, packetId);
++					
++					path->setPeerAddress(this->address());
++					
+ 					_paths[replacePath].lr = now;
+ 					_paths[replacePath].p = path;
+ 					_paths[replacePath].priority = 1;
+@@ -206,7 +288,7 @@ void Peer::received(
  	if (this->trustEstablished(now)) {
  		const int64_t sinceLastPush = now - _lastDirectPathPushSent;
  		bool lowBandwidth = RR->node->lowBandwidthModeEnabled();
@@ -1066,7 +1093,7 @@ index f77b4e6..a39f181 100644
  		if (sinceLastPush >= ((hops == 0) ? ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH * timerScale : ZT_DIRECT_PATH_PUSH_INTERVAL)) {
  			_lastDirectPathPushSent = now;
  			std::vector<InetAddress> pathsToPush(RR->node->directPaths());
-@@ -256,6 +335,7 @@ void Peer::received(
+@@ -256,6 +338,7 @@ void Peer::received(
  	}
  }
  
@@ -1074,7 +1101,7 @@ index f77b4e6..a39f181 100644
  SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId)
  {
  	Mutex::Lock _l(_paths_m);
-@@ -263,12 +343,16 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -263,12 +346,16 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	if(_bond && _bond->isReady()) {
  		return _bond->getAppropriatePath(now, flowId);
  	}
@@ -1091,7 +1118,7 @@ index f77b4e6..a39f181 100644
  	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
  		if (_paths[i].p) {
  			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-@@ -282,6 +366,26 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -282,6 +369,26 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  			break;
  		}
  	}
@@ -1118,24 +1145,24 @@ index f77b4e6..a39f181 100644
  	if (bestPath != ZT_MAX_PEER_NETWORK_PATHS) {
  		return _paths[bestPath].p;
  	}
-@@ -449,11 +553,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +556,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
 +	
 +	
-+	// 1. 【深拷贝】创建一个完全独立的副本
-+	Packet tcpOutp = outp;
-+
-+	// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+	uint64_t tcpId;
-+	Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+	// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+	tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+
-+	// 3. 【重新加密/签名】对新包应用和原包完全一样的加密和签名流程
-+	// 注意：这里的参数要和原始代码一致
-+	tcpOutp.cryptField(_key, startCryptedPortionAt, tcpOutp.size() - startCryptedPortionAt);
++//	// 1. 【深拷贝】创建一个完全独立的副本
++//	Packet tcpOutp = outp;
++//
++//	// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//	uint64_t tcpId;
++//	Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//	// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//	tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//
++//	// 3. 【重新加密/签名】对新包应用和原包完全一样的加密和签名流程
++//	// 注意：这里的参数要和原始代码一致
++//	tcpOutp.cryptField(_key, startCryptedPortionAt, tcpOutp.size() - startCryptedPortionAt);
 +
  
  	if (atAddress) {
@@ -1145,33 +1172,33 @@ index f77b4e6..a39f181 100644
 +		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size(),0,false);
 +		
 +		
-+		// 发一份必定走tcp的包,建立tcp连接
-+		tcpOutp.armor(_key,false,nullptr); // false == don't encrypt full payload, but add MAC
-+		RR->node->expectReplyTo(tcpOutp.packetId());
-+		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
++//		// 发一份必定走tcp的包,建立tcp连接
++//		tcpOutp.armor(_key,false,nullptr); // false == don't encrypt full payload, but add MAC
++//		RR->node->expectReplyTo(tcpOutp.packetId());
++//		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +592,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +595,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
 -		RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size());
 +		RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,false);
 +		
-+		// 1. 【深拷贝】创建一个完全独立的副本
-+		Packet tcpOutp = outp;
-+
-+		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+		uint64_t tcpId;
-+		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+		
-+		tcpOutp.armor(_key,true,aesKeysIfSupported());
-+		
-+		RR->node->expectReplyTo(tcpOutp.packetId());
-+		RR->node->putPacket(tPtr,localSocket,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
++//		// 1. 【深拷贝】创建一个完全独立的副本
++//		Packet tcpOutp = outp;
++//
++//		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//		uint64_t tcpId;
++//		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//		
++//		tcpOutp.armor(_key,true,aesKeysIfSupported());
++//		
++//		RR->node->expectReplyTo(tcpOutp.packetId());
++//		RR->node->putPacket(tPtr,localSocket,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
 +		
  	} else {
  		sendHELLO(tPtr,localSocket,atAddress,now);
@@ -1290,10 +1317,10 @@ index dab19c6..f11d61e 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..6115afa 100644
+index 7664f7a..5351539 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
-@@ -74,14 +74,16 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
+@@ -74,13 +74,25 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
  	return false; // overflow == invalid
  }
  
@@ -1306,12 +1333,21 @@ index 7664f7a..6115afa 100644
  
 +		// 记录来自udp的包和tcp的包
  		const SharedPtr<Path> path(RR->topology->getPath(localSocket,fromAddr));
++		
++//		if (path->latency() == 0xffff || path->alive(now) == false) {
++//			// 第一次路径接受到数据, 或者不活跃了
++//			path->setTCPPacket(isTCPPacket);
++//		} else if (path->alive(now) && path->isTCPPacket() == true && isTCPPacket == false) {
++//			// 从tcp可用 转换为udp路径
++//			path->setTCPPacket(isTCPPacket);
++//		}
++		
++		path->setTCPPacket(isTCPPacket);
++		
  		path->received(now);
-+		path->setTCPPacket(isTCPPacket); // 写入类型
  
  		if (len == 13) {
- 			/* LEGACY: before VERB_PUSH_DIRECT_PATHS, peers used broadcast
-@@ -968,7 +970,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -968,7 +980,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1424,7 +1460,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..f772e11 100644
+index 594ff02..099ee42 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1735,7 +1771,7 @@ index 594ff02..f772e11 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,23 +3743,43 @@ public:
+@@ -3612,23 +3743,57 @@ public:
  		return -1;
  	}
  
@@ -1754,6 +1790,20 @@ index 594ff02..f772e11 100644
 +
 +				const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
 +				
++				bool forceSendByTCP = false;
++				
++				SharedPtr<Peer> peer(RR->topology->getPeerNoCache(path->address()));
++				
++				if (peer) {
++					unsigned int late = peer->latency(RR->node->now());
++					if (late == 0xffff) {
++						forceSendByTCP = true;
++					}
++					
++				} else {
++					forceSendByTCP = true;
++				}
++				
 +				isTCPPath = path->isTCPPacket();
 +				
  				// TCP fallback tunnel support, currently IPv4 only
@@ -1763,7 +1813,7 @@ index 594ff02..f772e11 100644
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
 -					if (_forceTcpRelay || (((now - _lastDirectReceiveFromGlobal) > ZT_TCP_FALLBACK_AFTER)&&((now - _lastRestart) > ZT_TCP_FALLBACK_AFTER))) {
-+					if (isTCPPath || isTCPOnly || _forceTcpRelay) {
++					if (isTCPPath || isTCPOnly || _forceTcpRelay || forceSendByTCP) {
 +						
 +//						fprintf(stderr, "nodeWirePacketSendFunction 允许发送tcp, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d, isPathAlive:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay, isPathAlive);
 +						
@@ -1781,7 +1831,7 @@ index 594ff02..f772e11 100644
  									if (_tcpFallbackTunnel->writeq.length() == 0) {
  										_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
  										flushNow = true;
-@@ -3646,10 +3797,14 @@ public:
+@@ -3646,10 +3811,14 @@ public:
  								}
  							}
  							if (flushNow) {
@@ -1790,14 +1840,14 @@ index 594ff02..f772e11 100644
  								phyOnTcpWritable(_tcpFallbackTunnel->sock,&tmpptr);
  							}
 -						} else if (_forceTcpRelay || (((now - _lastSendToGlobalV4) < ZT_TCP_FALLBACK_AFTER)&&((now - _lastSendToGlobalV4) > (ZT_PING_CHECK_INTERVAL / 2)))) {
-+						} else if (isTCPPath || isTCPOnly || _forceTcpRelay) {
++						} else if (isTCPPath || isTCPOnly || _forceTcpRelay || forceSendByTCP) {
 +							
 +//							fprintf(stderr, "nodeWirePacketSendFunction 创建TcpConnection, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d, isPathAlive:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay, isPathAlive);
 +							
  							const InetAddress addr(_fallbackRelayAddress);
  							TcpConnection *tc = new TcpConnection();
  							{
-@@ -3670,12 +3825,17 @@ public:
+@@ -3670,12 +3839,17 @@ public:
  				}
  			}
  		}
@@ -1816,7 +1866,7 @@ index 594ff02..f772e11 100644
  		// Even when relaying we still send via UDP. This way if UDP starts
  		// working we can instantly "fail forward" to it and stop using TCP
  		// proxy fallback, which is slow.
-@@ -3909,8 +4069,8 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4083,8 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
@@ -1828,7 +1878,7 @@ index 594ff02..f772e11 100644
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeVirtualNetworkFrameFunction(nwid,nuptr,sourceMac,destMac,etherType,vlanId,data,len); }
  static int SnodePathCheckFunction(ZT_Node *node,void *uptr,void *tptr,uint64_t ztaddr,int64_t localSocket,const struct sockaddr_storage *remoteAddr)
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
-index 44bc5ea..3f2a7ef 100644
+index 44bc5ea..765c75b 100644
 --- a/tcp-proxy/tcp-proxy.cpp
 +++ b/tcp-proxy/tcp-proxy.cpp
 @@ -45,8 +45,8 @@
@@ -1837,7 +1887,7 @@ index 44bc5ea..3f2a7ef 100644
  
 -#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
 -#define ZT_TCP_PROXY_TCP_PORT 443
-+#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 15
++#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 60
 +#define ZT_TCP_PROXY_TCP_PORT 58443
  
  using namespace ZeroTier;
@@ -1851,15 +1901,3 @@ index 44bc5ea..3f2a7ef 100644
  						// Right now just sending this means the client is 'new enough' for the IP header
  						c.newVersion = true;
  						printf("<< TCP %.16llx HELLO\n",(unsigned long long)*uptr);
-@@ -307,9 +307,9 @@ int main(int argc,char **argv)
- 
- 	time_t lastDidHousekeeping = time((time_t *)0);
- 	for(;;) {
--		phy.poll(120000);
-+		phy.poll(10000);
- 		time_t now = time((time_t *)0);
--		if ((now - lastDidHousekeeping) > 120) {
-+		if ((now - lastDidHousekeeping) > 10) {
- 			lastDidHousekeeping = now;
- 			svc.doHousekeeping();
- 		}
