@@ -519,7 +519,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..895439e 100644
+index 2537c0f..7dacebc 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -582,7 +582,7 @@ index 2537c0f..895439e 100644
  						Metrics::pkt_error_out++;
  						Metrics::pkt_error_identity_collision_out++;
 -						_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+						_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++						_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
 +                        
 +                        fprintf(stdout, "\naddress collision\n");
  					} else {
@@ -661,7 +661,7 @@ index 2537c0f..895439e 100644
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
 -	_path->send(RR,tPtr,outp.data(),outp.size(),now);
-+	_path->send(RR,tPtr,outp.data(),outp.size(),now,0,outp.verb());
++	_path->send(RR,tPtr,outp.data(),outp.size(),now,outp.verb());
  
  	peer->setRemoteVersion(protoVersion,vMajor,vMinor,vRevision); // important for this to go first so received() knows the version
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_HELLO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
@@ -744,7 +744,7 @@ index 2537c0f..895439e 100644
  		Metrics::pkt_ok_out++;
  		outp.armor(peer->key(),true,peer->aesKeysIfSupported());
 -		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  	}
  
  	peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_WHOIS,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
@@ -762,7 +762,7 @@ index 2537c0f..895439e 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  		}
  
  		peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_EXT_FRAME,0,Packet::VERB_NOP,true,nwid,flowId);
@@ -771,7 +771,7 @@ index 2537c0f..895439e 100644
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
 -	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_ECHO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
  
@@ -780,7 +780,7 @@ index 2537c0f..895439e 100644
  		Metrics::pkt_error_out++;
  		Metrics::pkt_error_unsupported_op_out++;
 -		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  	}
  
  	peer->received(tPtr,_path,hopCount,requestPacketId,payloadLength(),Packet::VERB_NETWORK_CONFIG_REQUEST,0,Packet::VERB_NOP,false,nwid,ZT_QOS_NO_FLOW);
@@ -789,7 +789,7 @@ index 2537c0f..895439e 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  		}
  	}
  
@@ -798,7 +798,7 @@ index 2537c0f..895439e 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),now);
-+			_path->send(RR,tPtr,outp.data(),outp.size(),now,0,outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),now,outp.verb());
  		}
  	}
  
@@ -807,7 +807,7 @@ index 2537c0f..895439e 100644
  				peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  				Metrics::pkt_ok_out++;
 -				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  			}
  		}
  
@@ -816,7 +816,7 @@ index 2537c0f..895439e 100644
  	Metrics::pkt_error_out++;
  	Metrics::pkt_error_need_membership_cert_out++;
 -	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),0,outp.verb());
++	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
  }
  
  } // namespace ZeroTier
