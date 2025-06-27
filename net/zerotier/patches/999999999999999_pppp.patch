@@ -570,7 +570,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..e860855 100644
+index 2537c0f..f738d6f 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -595,7 +595,33 @@ index 2537c0f..e860855 100644
  			}
  
  			if (!uncompress()) {
-@@ -248,7 +256,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
+@@ -112,9 +120,15 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
+ 					r = _doRENDEZVOUS(RR, tPtr, peer);
+ 					break;
+ 				case Packet::VERB_FRAME:
++					if (peer->isPlanetPublicKey()) {
++						return false;
++					}
+ 					r = _doFRAME(RR, tPtr, peer, flowId);
+ 					break;
+ 				case Packet::VERB_EXT_FRAME:
++					if (peer->isPlanetPublicKey()) {
++						return false;
++					}
+ 					r = _doEXT_FRAME(RR, tPtr, peer, flowId);
+ 					break;
+ 				case Packet::VERB_ECHO:
+@@ -136,6 +150,9 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
+ 					r = _doMULTICAST_GATHER(RR, tPtr, peer);
+ 					break;
+ 				case Packet::VERB_MULTICAST_FRAME:
++					if (peer->isPlanetPublicKey()) {
++						return false;
++					}
+ 					r = _doMULTICAST_FRAME(RR, tPtr, peer);
+ 					break;
+ 				case Packet::VERB_PUSH_DIRECT_PATHS:
+@@ -248,7 +265,7 @@ bool IncomingPacket::_doERROR(const RuntimeEnvironment *RR,void *tPtr,const Shar
  		}	break;
  
  		case Packet::ERROR_NETWORK_AUTHENTICATION_REQUIRED: {
@@ -604,7 +630,7 @@ index 2537c0f..e860855 100644
  			const SharedPtr<Network> network(RR->node->network(at<uint64_t>(ZT_PROTO_VERB_ERROR_IDX_PAYLOAD)));
  			if ((network)&&(network->controller() == peer->address())) {
  				int s = (int)size() - (ZT_PROTO_VERB_ERROR_IDX_PAYLOAD + 8);
-@@ -375,17 +383,23 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -375,17 +392,23 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  	Identity id;
  	unsigned int ptr = ZT_PROTO_VERB_HELLO_IDX_IDENTITY + id.deserialize(*this,ZT_PROTO_VERB_HELLO_IDX_IDENTITY);
  
@@ -628,7 +654,7 @@ index 2537c0f..e860855 100644
  		// We already have an identity with this address -- check for collisions
  		if (!alreadyAuthenticated) {
  			if (peer->identity() != id) {
-@@ -407,12 +421,16 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -407,12 +430,16 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  						outp.armor(key,true,peer->aesKeysIfSupported());
  						Metrics::pkt_error_out++;
  						Metrics::pkt_error_identity_collision_out++;
@@ -646,7 +672,7 @@ index 2537c0f..e860855 100644
  				}
  
  				return true;
-@@ -421,11 +439,19 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -421,11 +448,19 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  
  				if (!dearmor(peer->key(), peer->aesKeysIfSupported())) {
  					RR->t->incomingPacketMessageAuthenticationFailure(tPtr,_path,pid,fromAddress,hops(),"invalid MAC");
@@ -666,7 +692,7 @@ index 2537c0f..e860855 100644
  		} // else if alreadyAuthenticated then continue at // VALID
  	} else {
  		// We don't already have an identity with this address -- validate and learn it
-@@ -433,12 +459,14 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -433,12 +468,14 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  		// Sanity check: this basically can't happen
  		if (alreadyAuthenticated) {
  			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"illegal alreadyAuthenticated state");
@@ -681,7 +707,7 @@ index 2537c0f..e860855 100644
  			return true;
  		}
  
-@@ -446,15 +474,25 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -446,14 +483,24 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  		SharedPtr<Peer> newPeer(new Peer(RR,RR->identity,id));
  		if (!dearmor(newPeer->key(), newPeer->aesKeysIfSupported())) {
  			RR->t->incomingPacketMessageAuthenticationFailure(tPtr,_path,pid,fromAddress,hops(),"invalid MAC");
@@ -693,21 +719,20 @@ index 2537c0f..e860855 100644
  		if (!id.locallyValidate()) {
  			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid identity");
 +            fprintf(stdout, "\ninvalid identity %s\n", id.address().toString(addressBuf));
- 			return true;
- 		}
- 
++			return true;
++		}
++
 +		if (!newPeer->isValidPeerClientPublicKey()) {
 +			RR->t->incomingPacketDroppedHELLO(tPtr,_path,pid,fromAddress,"invalid allowedPeerKeys identity");
 +			fprintf(stdout, "\n _doHELLO invalid allowedPeerKeys identity %s\n", id.address().toString(addressBuf));
-+			return true;
-+		}
+ 			return true;
+ 		}
 +		
 +		fprintf(stdout, "\nadd peer %s\n", id.address().toString(addressBuf));
-+
+ 
  		peer = RR->topology->addPeer(tPtr,newPeer);
  
- 		// Continue at // VALID
-@@ -565,7 +603,7 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
+@@ -565,7 +612,7 @@ bool IncomingPacket::_doHELLO(const RuntimeEnvironment *RR,void *tPtr,const bool
  	outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
@@ -716,7 +741,7 @@ index 2537c0f..e860855 100644
  
  	peer->setRemoteVersion(protoVersion,vMajor,vMinor,vRevision); // important for this to go first so received() knows the version
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_HELLO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
-@@ -579,8 +617,13 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -579,8 +626,13 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  	const Packet::Verb inReVerb = (Packet::Verb)(*this)[ZT_PROTO_VERB_OK_IDX_IN_RE_VERB];
  	const uint64_t inRePacketId = at<uint64_t>(ZT_PROTO_VERB_OK_IDX_IN_RE_PACKET_ID);
  	uint64_t networkId = 0;
@@ -730,7 +755,7 @@ index 2537c0f..e860855 100644
  		return true;
  	}
  
-@@ -595,6 +638,13 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -595,6 +647,13 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  			if (vProto < ZT_PROTO_VERSION_MIN) {
  				return true;
  			}
@@ -744,7 +769,7 @@ index 2537c0f..e860855 100644
  
  			InetAddress externalSurfaceAddress;
  			unsigned int ptr = ZT_PROTO_VERB_HELLO__OK__IDX_REVISION + 2;
-@@ -602,7 +652,12 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -602,7 +661,12 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  			// Get reported external surface address if present
  			if (ptr < size()) {
  				ptr += externalSurfaceAddress.deserialize(*this,ptr);
@@ -758,7 +783,7 @@ index 2537c0f..e860855 100644
  
  			// Handle planet or moon updates if present
  			if ((ptr + 2) <= size()) {
-@@ -628,13 +683,30 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
+@@ -628,13 +692,30 @@ bool IncomingPacket::_doOK(const RuntimeEnvironment *RR,void *tPtr,const SharedP
  
  			if ((externalSurfaceAddress)&&(hops() == 0)) {
  				RR->sa->iam(tPtr,peer->address(),_path->localSocket(),_path->address(),externalSurfaceAddress,RR->topology->isUpstream(peer->identity()),RR->node->now());
@@ -790,7 +815,7 @@ index 2537c0f..e860855 100644
  			}
  			break;
  
-@@ -725,7 +797,7 @@ bool IncomingPacket::_doWHOIS(const RuntimeEnvironment *RR,void *tPtr,const Shar
+@@ -725,7 +806,7 @@ bool IncomingPacket::_doWHOIS(const RuntimeEnvironment *RR,void *tPtr,const Shar
  	if (count > 0) {
  		Metrics::pkt_ok_out++;
  		outp.armor(peer->key(),true,peer->aesKeysIfSupported());
@@ -799,7 +824,7 @@ index 2537c0f..e860855 100644
  	}
  
  	peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_WHOIS,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
-@@ -746,7 +818,7 @@ bool IncomingPacket::_doRENDEZVOUS(const RuntimeEnvironment *RR,void *tPtr,const
+@@ -746,7 +827,7 @@ bool IncomingPacket::_doRENDEZVOUS(const RuntimeEnvironment *RR,void *tPtr,const
  				InetAddress atAddr(field(ZT_PROTO_VERB_RENDEZVOUS_IDX_ADDRESS,addrlen),addrlen,port);
  				if (RR->node->shouldUsePathForZeroTierTraffic(tPtr,with,_path->localSocket(),atAddr)) {
  					const uint64_t junk = RR->node->prng();
@@ -808,7 +833,7 @@ index 2537c0f..e860855 100644
  					rendezvousWith->attemptToContactAt(tPtr,_path->localSocket(),atAddr,RR->node->now(),false);
  				}
  			}
-@@ -955,7 +1027,7 @@ bool IncomingPacket::_doEXT_FRAME(const RuntimeEnvironment *RR,void *tPtr,const
+@@ -955,7 +1036,7 @@ bool IncomingPacket::_doEXT_FRAME(const RuntimeEnvironment *RR,void *tPtr,const
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -817,7 +842,7 @@ index 2537c0f..e860855 100644
  		}
  
  		peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_EXT_FRAME,0,Packet::VERB_NOP,true,nwid,flowId);
-@@ -984,7 +1056,7 @@ bool IncomingPacket::_doECHO(const RuntimeEnvironment *RR,void *tPtr,const Share
+@@ -984,7 +1065,7 @@ bool IncomingPacket::_doECHO(const RuntimeEnvironment *RR,void *tPtr,const Share
  	outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
@@ -826,7 +851,7 @@ index 2537c0f..e860855 100644
  
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_ECHO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
  
-@@ -1180,7 +1252,7 @@ bool IncomingPacket::_doNETWORK_CONFIG_REQUEST(const RuntimeEnvironment *RR,void
+@@ -1180,7 +1261,7 @@ bool IncomingPacket::_doNETWORK_CONFIG_REQUEST(const RuntimeEnvironment *RR,void
  		outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  		Metrics::pkt_error_out++;
  		Metrics::pkt_error_unsupported_op_out++;
@@ -835,7 +860,7 @@ index 2537c0f..e860855 100644
  	}
  
  	peer->received(tPtr,_path,hopCount,requestPacketId,payloadLength(),Packet::VERB_NETWORK_CONFIG_REQUEST,0,Packet::VERB_NOP,false,nwid,ZT_QOS_NO_FLOW);
-@@ -1204,7 +1276,7 @@ bool IncomingPacket::_doNETWORK_CONFIG(const RuntimeEnvironment *RR,void *tPtr,c
+@@ -1204,7 +1285,7 @@ bool IncomingPacket::_doNETWORK_CONFIG(const RuntimeEnvironment *RR,void *tPtr,c
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -844,7 +869,7 @@ index 2537c0f..e860855 100644
  		}
  	}
  
-@@ -1247,7 +1319,7 @@ bool IncomingPacket::_doMULTICAST_GATHER(const RuntimeEnvironment *RR,void *tPtr
+@@ -1247,7 +1328,7 @@ bool IncomingPacket::_doMULTICAST_GATHER(const RuntimeEnvironment *RR,void *tPtr
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -853,7 +878,7 @@ index 2537c0f..e860855 100644
  		}
  	}
  
-@@ -1351,7 +1423,7 @@ bool IncomingPacket::_doMULTICAST_FRAME(const RuntimeEnvironment *RR,void *tPtr,
+@@ -1351,7 +1432,7 @@ bool IncomingPacket::_doMULTICAST_FRAME(const RuntimeEnvironment *RR,void *tPtr,
  				outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  				peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  				Metrics::pkt_ok_out++;
@@ -862,7 +887,7 @@ index 2537c0f..e860855 100644
  			}
  		}
  
-@@ -1493,7 +1565,7 @@ void IncomingPacket::_sendErrorNeedCredentials(const RuntimeEnvironment *RR,void
+@@ -1493,7 +1574,7 @@ void IncomingPacket::_sendErrorNeedCredentials(const RuntimeEnvironment *RR,void
  	outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  	Metrics::pkt_error_out++;
  	Metrics::pkt_error_need_membership_cert_out++;
@@ -885,7 +910,7 @@ index 3a77197..519ba84 100644
  				}
  			}
 diff --git a/node/Network.cpp b/node/Network.cpp
-index 1643487..416250f 100644
+index 1643487..4299f8f 100644
 --- a/node/Network.cpp
 +++ b/node/Network.cpp
 @@ -1349,6 +1349,11 @@ bool Network::gate(void *tPtr,const SharedPtr<Peer> &peer)
@@ -893,9 +918,9 @@ index 1643487..416250f 100644
  	Mutex::Lock _l(_lock);
  	try {
 +        
-+        if (peer->isPlanetPublicKey()) {
-+            return false;
-+        }
++//        if (peer->isPlanetPublicKey()) {
++//            return false;
++//        }
 +        
  		if (_config) {
  			Membership *m = _memberships.get(peer->address());
