@@ -903,7 +903,7 @@ index 1f377c5..3c1ecde 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..b94b8e5 100644
+index f9d0548..2674cec 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -946,7 +946,7 @@ index f9d0548..b94b8e5 100644
  	inline int64_t now() const { return _now; }
  
 -	inline bool putPacket(void *tPtr,const int64_t localSocket,const InetAddress &addr,const void *data,unsigned int len,unsigned int ttl = 0)
-+	inline bool putPacket(void *tPtr,const int64_t localSocket,const InetAddress &addr,const void *data,unsigned int len,unsigned int ttl = 0, Packet::Verb verb)
++	inline bool putPacket(void *tPtr,const int64_t localSocket,const InetAddress &addr,const void *data,unsigned int len,unsigned int ttl,Packet::Verb verb)
  	{
 +
  		return (_cb.wirePacketSendFunction(
