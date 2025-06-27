@@ -226,10 +226,10 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..61b8668 100644
+index 95f093b..f3d4e08 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
-@@ -291,12 +291,12 @@
+@@ -291,22 +291,22 @@
  /**
   * Default MTU used for Ethernet tap device
   */
@@ -244,7 +244,10 @@ index 95f093b..61b8668 100644
  
  /**
   * Size of RX queue
-@@ -306,7 +306,7 @@
+  */
+-#define ZT_RX_QUEUE_SIZE 32
++#define ZT_RX_QUEUE_SIZE 64
+ 
  /**
   * Size of TX queue
   */
@@ -262,6 +265,15 @@ index 95f093b..61b8668 100644
  
  /**
   * Receive queue entry timeout
+@@ -338,7 +338,7 @@
+  *
+  * The protocol allows up to 7, but we limit it to something smaller.
+  */
+-#define ZT_RELAY_MAX_HOPS 3
++#define ZT_RELAY_MAX_HOPS 7
+ 
+ /**
+  * Expire time for multicast 'likes' and indirect multicast memberships in ms
 @@ -375,7 +375,7 @@
  /**
   * How frequently to send heartbeats over in-use paths
@@ -321,28 +333,67 @@ index 95f093b..61b8668 100644
   */
  #ifndef ZT_SDK
 -#define ZT_PEER_ACTIVITY_TIMEOUT 500000
-+#define ZT_PEER_ACTIVITY_TIMEOUT 40000
++#define ZT_PEER_ACTIVITY_TIMEOUT 20000
  #else
 -#define ZT_PEER_ACTIVITY_TIMEOUT 30000
-+#define ZT_PEER_ACTIVITY_TIMEOUT 20000
++#define ZT_PEER_ACTIVITY_TIMEOUT 10000
  #endif
  
  /**
-@@ -565,12 +565,12 @@
+@@ -530,7 +530,7 @@
+  * Don't lengthen this as it affects things like QoS / uptime monitoring
+  * via ZeroTier Central. This is the heartbeat, basically.
+  */
+-#define ZT_NETWORK_AUTOCONF_DELAY 60000
++#define ZT_NETWORK_AUTOCONF_DELAY 5000
+ 
+ /**
+  * Minimum interval between attempts by relays to unite peers
+@@ -539,12 +539,12 @@
+  * a RENDEZVOUS message no more than this often. This instructs the peers
+  * to attempt NAT-t and gives each the other's corresponding IP:port pair.
+  */
+-#define ZT_MIN_UNITE_INTERVAL 30000
++#define ZT_MIN_UNITE_INTERVAL 2000
+ 
+ /**
+  * How often should peers try memorized or statically defined paths?
+  */
+-#define ZT_TRY_MEMORIZED_PATH_INTERVAL 30000
++#define ZT_TRY_MEMORIZED_PATH_INTERVAL 15000
+ 
+ /**
+  * Sanity limit on maximum bridge routes
+@@ -565,17 +565,17 @@
  /**
   * Interval between direct path pushes in milliseconds
   */
 -#define ZT_DIRECT_PATH_PUSH_INTERVAL 15000
-+#define ZT_DIRECT_PATH_PUSH_INTERVAL 10000
++#define ZT_DIRECT_PATH_PUSH_INTERVAL 2000
  
  /**
   * Interval between direct path pushes in milliseconds if we already have a path
   */
 -#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 120000
-+#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 15000
++#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 5000
  
  /**
   * Time horizon for push direct paths cutoff
+  */
+-#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 30000
++#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 10000
+ 
+ /**
+  * Drainage constants for VERB_ECHO rate-limiters
+@@ -605,7 +605,7 @@
+  * per CUTOFF_TIME milliseconds per peer to prevent this from being
+  * useful for DOS amplification attacks.
+  */
+-#define ZT_PUSH_DIRECT_PATHS_CUTOFF_LIMIT 8
++#define ZT_PUSH_DIRECT_PATHS_CUTOFF_LIMIT 10
+ 
+ /**
+  * Maximum number of paths per IP scope (e.g. global, link-local) and family (e.g. v4/v6)
 @@ -636,7 +636,7 @@
  /**
   * Minimum allowed amount of time between flow/path optimizations (anti-flapping)
@@ -519,7 +570,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..7dacebc 100644
+index 2537c0f..e860855 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -753,7 +804,7 @@ index 2537c0f..7dacebc 100644
  				if (RR->node->shouldUsePathForZeroTierTraffic(tPtr,with,_path->localSocket(),atAddr)) {
  					const uint64_t junk = RR->node->prng();
 -					RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
-+					RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2,Packet::VERB_NOP); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
++					RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,6,Packet::VERB_NOP); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
  					rendezvousWith->attemptToContactAt(tPtr,_path->localSocket(),atAddr,RR->node->now(),false);
  				}
  			}
@@ -1477,10 +1528,10 @@ index dab19c6..f11d61e 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..2894031 100644
+index 7664f7a..77481c8 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
-@@ -74,13 +74,25 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
+@@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
  	return false; // overflow == invalid
  }
  
@@ -1494,20 +1545,19 @@ index 7664f7a..2894031 100644
 +		// 记录来自udp的包和tcp的包
  		const SharedPtr<Path> path(RR->topology->getPath(localSocket,fromAddr));
 +		
-+//		if (path->latency() == 0xffff || path->alive(now) == false) {
-+//			// 第一次路径接受到数据, 或者不活跃了
-+//			path->setTCPPacket(isTCPPacket);
-+//		} else if (path->alive(now) && path->isTCPPacket() == true && isTCPPacket == false) {
-+//			// 从tcp可用 转换为udp路径
-+//			path->setTCPPacket(isTCPPacket);
-+//		}
++		bool needIntroduce = false;
++		
++		if (path->latency() == 0xffff || path->alive(now) == false) {
++			// 第一次路径接受到数据, 或者不活跃了
++			needIntroduce = true;
++		}
 +		
 +		path->setTCPPacket(isTCPPacket);
 +		
  		path->received(now);
  
  		if (len == 13) {
-@@ -103,7 +115,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -103,7 +114,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					Packet outp(peer->address(),RR->identity.address(),Packet::VERB_NOP);
  					outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  					Metrics::pkt_nop_out++;
@@ -1516,7 +1566,25 @@ index 7664f7a..2894031 100644
  				}
  			}
  
-@@ -968,7 +980,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -119,7 +130,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+ 						return;
+ 					}
+ 
+-					if (fragment.hops() < ZT_RELAY_MAX_HOPS) {
++					if (fragment.hops() < ZT_RELAY_MAX_HOPS || needIntroduce) {
+ 						fragment.incrementHops();
+ 
+ 						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
+@@ -198,7 +209,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+ 
+ 					Packet packet(data,len);
+ 
+-					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
++					if (packet.hops() < ZT_RELAY_MAX_HOPS || needIntroduce) {
+ 						packet.incrementHops();
+ 						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
+ 						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
+@@ -968,7 +979,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1527,7 +1595,7 @@ index 7664f7a..2894031 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1164,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1163,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1536,7 +1604,7 @@ index 7664f7a..2894031 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1164,7 +1178,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1164,7 +1177,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  			for(unsigned int fno=1;fno<totalFragments;++fno) {
  				chunkSize = std::min(remaining,(unsigned int)(mtu - ZT_PROTO_MIN_FRAGMENT_LENGTH));
  				Packet::Fragment frag(packet,fragStart,chunkSize,fno,totalFragments);
@@ -2077,16 +2145,14 @@ index 594ff02..b7e20ba 100644
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeVirtualNetworkFrameFunction(nwid,nuptr,sourceMac,destMac,etherType,vlanId,data,len); }
  static int SnodePathCheckFunction(ZT_Node *node,void *uptr,void *tptr,uint64_t ztaddr,int64_t localSocket,const struct sockaddr_storage *remoteAddr)
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
-index 44bc5ea..765c75b 100644
+index 44bc5ea..8fbe6d6 100644
 --- a/tcp-proxy/tcp-proxy.cpp
 +++ b/tcp-proxy/tcp-proxy.cpp
-@@ -45,8 +45,8 @@
- 
+@@ -46,7 +46,7 @@
  #include "../node/Metrics.hpp"
  
--#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
+ #define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
 -#define ZT_TCP_PROXY_TCP_PORT 443
-+#define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 60
 +#define ZT_TCP_PROXY_TCP_PORT 58443
  
  using namespace ZeroTier;
