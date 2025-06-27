@@ -903,7 +903,7 @@ index 1f377c5..3c1ecde 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..fbdf79a 100644
+index f9d0548..b94b8e5 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -914,15 +914,16 @@ index f9d0548..fbdf79a 100644
  
  #include <map>
  #include <vector>
-@@ -36,6 +37,7 @@
+@@ -36,6 +37,8 @@
  #include "Hashtable.hpp"
  #include "Bond.hpp"
  #include "SelfAwareness.hpp"
 +#include "C25519.hpp"
++#include "Packet.hpp"
  
  // Bit mask for "expecting reply" hash
  #define ZT_EXPECTING_REPLIES_BUCKET_MASK1 255
-@@ -43,6 +45,7 @@
+@@ -43,6 +46,7 @@
  
  namespace ZeroTier {
  
@@ -930,7 +931,7 @@ index f9d0548..fbdf79a 100644
  class World;
  
  /**
-@@ -71,7 +74,8 @@ public:
+@@ -71,7 +75,8 @@ public:
  		const struct sockaddr_storage *remoteAddress,
  		const void *packetData,
  		unsigned int packetLength,
@@ -940,7 +941,7 @@ index f9d0548..fbdf79a 100644
  	ZT_ResultCode processVirtualNetworkFrame(
  		void *tptr,
  		int64_t now,
-@@ -105,8 +109,9 @@ public:
+@@ -105,8 +110,9 @@ public:
  
  	inline int64_t now() const { return _now; }
  
@@ -951,7 +952,7 @@ index f9d0548..fbdf79a 100644
  		return (_cb.wirePacketSendFunction(
  			reinterpret_cast<ZT_Node *>(this),
  			_uPtr,
-@@ -115,7 +120,8 @@ public:
+@@ -115,7 +121,8 @@ public:
  			reinterpret_cast<const struct sockaddr_storage *>(&addr),
  			data,
  			len,
@@ -961,7 +962,7 @@ index f9d0548..fbdf79a 100644
  	}
  
  	inline void putFrame(void *tPtr,uint64_t nwid,void **nuptr,const MAC &source,const MAC &dest,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -163,6 +169,7 @@ public:
+@@ -163,6 +170,7 @@ public:
  		return nw;
  	}
  
@@ -969,7 +970,7 @@ index f9d0548..fbdf79a 100644
  	inline std::vector<InetAddress> directPaths() const
  	{
  		Mutex::Lock _l(_directPaths_m);
-@@ -289,6 +296,14 @@ public:
+@@ -289,6 +297,14 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
