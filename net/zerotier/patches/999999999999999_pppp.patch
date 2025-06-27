@@ -1647,7 +1647,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..348de96 100644
+index 594ff02..9b573a2 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1958,7 +1958,7 @@ index 594ff02..348de96 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,23 +3743,58 @@ public:
+@@ -3612,23 +3743,65 @@ public:
  		return -1;
  	}
  
@@ -1969,30 +1969,37 @@ index 594ff02..348de96 100644
 +		
 +		bool isTCPPath = false;
 +		
-+		bool mustSendTCPAndUDP = false;
-+			
-+		if (verb == Packet::VERB_NOP ||
-+			verb == Packet::VERB_HELLO ||
-+			verb == Packet::VERB_OK ||
-+			verb == Packet::VERB_WHOIS ||
-+			verb == Packet::VERB_RENDEZVOUS ||
-+			verb == Packet::VERB_PUSH_DIRECT_PATHS ||
-+			verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
-+			verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
-+			verb == Packet::VERB_NETWORK_CONFIG ||
-+			verb == Packet::VERB_NETWORK_CREDENTIALS) {
-+			mustSendTCPAndUDP = true;
-+		}
++		bool needSendTCP = false;
 +		
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
 +								
 +				const InetAddress *inetAddrPtr = reinterpret_cast<const InetAddress *>(addr);
-+
 +				const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
 +				
 +				isTCPPath = path->isTCPPacket();
++				
++				if (verb == Packet::VERB_NOP ||
++					verb == Packet::VERB_HELLO ||
++					verb == Packet::VERB_OK ||
++					verb == Packet::VERB_WHOIS ||
++					verb == Packet::VERB_RENDEZVOUS ||
++					verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++					verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++					verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++					verb == Packet::VERB_NETWORK_CONFIG ||
++					verb == Packet::VERB_NETWORK_CREDENTIALS) {
++					
++					if (path) {
++						if (!isTCPPath && path->alive(_node->now()) == false) {
++							needSendTCP = true;
++						}
++					} else {
++						needSendTCP = true;
++					}
++				}
++				
 +				
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
@@ -2001,7 +2008,7 @@ index 594ff02..348de96 100644
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
 -					if (_forceTcpRelay || (((now - _lastDirectReceiveFromGlobal) > ZT_TCP_FALLBACK_AFTER)&&((now - _lastRestart) > ZT_TCP_FALLBACK_AFTER))) {
-+					if (isTCPPath || mustSendTCPAndUDP || _forceTcpRelay) {
++					if (isTCPPath || needSendTCP || _forceTcpRelay) {
 +						
 +//						fprintf(stderr, "nodeWirePacketSendFunction 允许发送tcp, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d, isPathAlive:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay, isPathAlive);
 +						
@@ -2019,7 +2026,7 @@ index 594ff02..348de96 100644
  									if (_tcpFallbackTunnel->writeq.length() == 0) {
  										_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
  										flushNow = true;
-@@ -3646,10 +3812,14 @@ public:
+@@ -3646,10 +3819,14 @@ public:
  								}
  							}
  							if (flushNow) {
@@ -2028,19 +2035,19 @@ index 594ff02..348de96 100644
  								phyOnTcpWritable(_tcpFallbackTunnel->sock,&tmpptr);
  							}
 -						} else if (_forceTcpRelay || (((now - _lastSendToGlobalV4) < ZT_TCP_FALLBACK_AFTER)&&((now - _lastSendToGlobalV4) > (ZT_PING_CHECK_INTERVAL / 2)))) {
-+						} else if (isTCPPath || mustSendTCPAndUDP || _forceTcpRelay) {
++						} else if (isTCPPath || needSendTCP || _forceTcpRelay) {
 +							
 +//							fprintf(stderr, "nodeWirePacketSendFunction 创建TcpConnection, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d, isPathAlive:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay, isPathAlive);
 +							
  							const InetAddress addr(_fallbackRelayAddress);
  							TcpConnection *tc = new TcpConnection();
  							{
-@@ -3670,12 +3840,17 @@ public:
+@@ -3670,12 +3847,17 @@ public:
  				}
  			}
  		}
 -		if (_forceTcpRelay) {
-+		if ((isTCPPath || _forceTcpRelay) && mustSendTCPAndUDP == false) {
++		if (isTCPPath || _forceTcpRelay) {
  			// Shortcut here so that we don't emit any UDP packets
 +			
 +//			fprintf(stderr, "nodeWirePacketSendFunction 停止发送udp, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay);
@@ -2054,7 +2061,7 @@ index 594ff02..348de96 100644
  		// Even when relaying we still send via UDP. This way if UDP starts
  		// working we can instantly "fail forward" to it and stop using TCP
  		// proxy fallback, which is slow.
-@@ -3909,8 +4084,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4091,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
