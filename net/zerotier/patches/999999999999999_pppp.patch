@@ -1647,7 +1647,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..61161d4 100644
+index 594ff02..558a325 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1971,7 +1971,7 @@ index 594ff02..61161d4 100644
 +		
 +		bool mustSendTCPAndUDP = false;
 +			
-+		if (verb == Packet::VERB_NOP || verb == Packet::VERB_HELLO || verb == Packet::VERB_OK || Packet::VERB_WHOIS || Packet::VERB_RENDEZVOUS || Packet::VERB_PUSH_DIRECT_PATHS || Packet::VERB_NETWORK_CONFIG_REQUEST) {
++		if (verb == Packet::VERB_NOP || verb == Packet::VERB_HELLO || verb == Packet::VERB_OK || verb == Packet::VERB_WHOIS || verb == Packet::VERB_RENDEZVOUS || verb == Packet::VERB_PUSH_DIRECT_PATHS || verb == Packet::VERB_NETWORK_CONFIG_REQUEST) {
 +			mustSendTCPAndUDP = true;
 +		}
 +		
