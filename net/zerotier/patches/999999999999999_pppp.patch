@@ -820,6 +820,19 @@ index 2537c0f..7dacebc 100644
  }
  
  } // namespace ZeroTier
+diff --git a/node/Multicaster.cpp b/node/Multicaster.cpp
+index 3a77197..519ba84 100644
+--- a/node/Multicaster.cpp
++++ b/node/Multicaster.cpp
+@@ -201,7 +201,7 @@ void Multicaster::send(
+ 					}
+ 					outp.armor(bestMulticastReplicator->key(),true,bestMulticastReplicator->aesKeysIfSupported());
+ 					Metrics::pkt_multicast_frame_out++;
+-					bestMulticastReplicatorPath->send(RR,tPtr,outp.data(),outp.size(),now);
++					bestMulticastReplicatorPath->send(RR,tPtr,outp.data(),outp.size(),now,outp.verb());
+ 					return;
+ 				}
+ 			}
 diff --git a/node/Network.cpp b/node/Network.cpp
 index 1643487..416250f 100644
 --- a/node/Network.cpp
