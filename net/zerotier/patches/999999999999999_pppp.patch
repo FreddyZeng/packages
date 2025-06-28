@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..f3d4e08 100644
+index 95f093b..2f10e83 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,22 +291,22 @@
@@ -274,7 +274,13 @@ index 95f093b..f3d4e08 100644
  
  /**
   * Expire time for multicast 'likes' and indirect multicast memberships in ms
-@@ -375,7 +375,7 @@
+@@ -370,12 +370,12 @@
+ /**
+  * How often the local.conf file is checked for changes (service, should be moved there)
+  */
+-#define ZT_LOCAL_CONF_FILE_CHECK_INTERVAL 10000
++#define ZT_LOCAL_CONF_FILE_CHECK_INTERVAL 5000
+ 
  /**
   * How frequently to send heartbeats over in-use paths
   */
@@ -360,7 +366,7 @@ index 95f093b..f3d4e08 100644
   * How often should peers try memorized or statically defined paths?
   */
 -#define ZT_TRY_MEMORIZED_PATH_INTERVAL 30000
-+#define ZT_TRY_MEMORIZED_PATH_INTERVAL 15000
++#define ZT_TRY_MEMORIZED_PATH_INTERVAL 5000
  
  /**
   * Sanity limit on maximum bridge routes
@@ -381,7 +387,7 @@ index 95f093b..f3d4e08 100644
   * Time horizon for push direct paths cutoff
   */
 -#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 30000
-+#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 10000
++#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 3000
  
  /**
   * Drainage constants for VERB_ECHO rate-limiters
@@ -390,7 +396,7 @@ index 95f093b..f3d4e08 100644
   * useful for DOS amplification attacks.
   */
 -#define ZT_PUSH_DIRECT_PATHS_CUTOFF_LIMIT 8
-+#define ZT_PUSH_DIRECT_PATHS_CUTOFF_LIMIT 10
++#define ZT_PUSH_DIRECT_PATHS_CUTOFF_LIMIT 3
  
  /**
   * Maximum number of paths per IP scope (e.g. global, link-local) and family (e.g. v4/v6)
@@ -992,7 +998,7 @@ index 1f377c5..3c1ecde 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..2674cec 100644
+index f9d0548..9a22fd6 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -1074,6 +1080,15 @@ index f9d0548..2674cec 100644
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
+@@ -334,6 +350,8 @@ public:
+ 	volatile int64_t _prngState[2];
+ 	bool _online;
+ 	bool _lowBandwidthMode;
++	
++	int64_t _directPathCount;
+ };
+ 
+ } // namespace ZeroTier
 diff --git a/node/Packet.hpp b/node/Packet.hpp
 index f607d1f..ac2863c 100644
 --- a/node/Packet.hpp
@@ -1699,7 +1714,7 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
-index 23e6393..8f6e83d 100644
+index 23e6393..d03879e 100644
 --- a/osdep/Binder.hpp
 +++ b/osdep/Binder.hpp
 @@ -63,7 +63,7 @@
@@ -1707,7 +1722,7 @@ index 23e6393..8f6e83d 100644
  
  // Period between refreshes of bindings
 -#define ZT_BINDER_REFRESH_PERIOD 30000
-+#define ZT_BINDER_REFRESH_PERIOD 15000
++#define ZT_BINDER_REFRESH_PERIOD 5000
  
  // Max number of bindings
  #define ZT_BINDER_MAX_BINDINGS 256
@@ -1740,7 +1755,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..b7e20ba 100644
+index 594ff02..37f665f 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1851,7 +1866,25 @@ index 594ff02..b7e20ba 100644
  			}
  #endif
  
-@@ -1271,8 +1302,9 @@ public:
+@@ -1183,7 +1214,7 @@ public:
+ 
+ 				// Attempt to detect sleep/wake events by detecting delay overruns
+ 				bool restarted = false;
+-				if ((now > clockShouldBe)&&((now - clockShouldBe) > 10000)) {
++				if ((now > clockShouldBe)&&((now - clockShouldBe) > 5000)) {
+ 					_lastRestart = now;
+ 					restarted = true;
+ 				}
+@@ -1262,6 +1293,8 @@ public:
+ 						}
+ 					}
+ 				}
++				
++				_node->_directPathCount = _node->_directPaths.size();
+ 
+ 				// Run background task processor in core if it's time to do so
+ 				int64_t dl = _nextBackgroundTaskDeadline;
+@@ -1271,8 +1304,9 @@ public:
  				}
  
  				// Close TCP fallback tunnel if we have direct UDP
@@ -1862,7 +1895,7 @@ index 594ff02..b7e20ba 100644
  				}
  
  				// Sync multicast group memberships
-@@ -2189,6 +2221,7 @@ public:
+@@ -2189,6 +2223,7 @@ public:
              json &settings = out["config"]["settings"];
              settings["allowTcpFallbackRelay"] = OSUtils::jsonBool(settings["allowTcpFallbackRelay"],_allowTcpFallbackRelay);
              settings["forceTcpRelay"] = OSUtils::jsonBool(settings["forceTcpRelay"],_forceTcpRelay);
@@ -1870,7 +1903,7 @@ index 594ff02..b7e20ba 100644
              settings["primaryPort"] = OSUtils::jsonInt(settings["primaryPort"],(uint64_t)_primaryPort) & 0xffff;
              settings["secondaryPort"] = OSUtils::jsonInt(settings["secondaryPort"],(uint64_t)_ports[1]) & 0xffff;
              settings["tertiaryPort"] = OSUtils::jsonInt(settings["tertiaryPort"],(uint64_t)_tertiaryPort) & 0xffff;
-@@ -2572,6 +2605,59 @@ public:
+@@ -2572,6 +2607,59 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -1930,7 +1963,7 @@ index 594ff02..b7e20ba 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2667,9 @@ public:
+@@ -2581,6 +2669,9 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -1940,7 +1973,7 @@ index 594ff02..b7e20ba 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2746,8 @@ public:
+@@ -2657,6 +2748,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -1949,7 +1982,7 @@ index 594ff02..b7e20ba 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3041,8 @@ public:
+@@ -2950,7 +3043,8 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -1959,7 +1992,7 @@ index 594ff02..b7e20ba 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3069,33 @@ public:
+@@ -2977,10 +3071,33 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -1995,7 +2028,7 @@ index 594ff02..b7e20ba 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3013,6 +3128,10 @@ public:
+@@ -3013,6 +3130,10 @@ public:
  			http_parser_init(&(tc->parser),HTTP_REQUEST);
  			tc->parser.data = (void *)tc;
  			tc->messageSize = 0;
@@ -2006,7 +2039,7 @@ index 594ff02..b7e20ba 100644
  
  			*uptrN = (void *)tc;
  		}
-@@ -3023,6 +3142,11 @@ public:
+@@ -3023,6 +3144,11 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2018,7 +2051,7 @@ index 594ff02..b7e20ba 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3185,7 @@ public:
+@@ -3061,7 +3187,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2027,7 +2060,7 @@ index 594ff02..b7e20ba 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3220,13 @@ public:
+@@ -3096,7 +3222,13 @@ public:
  								}
  
  								if (from) {
@@ -2041,7 +2074,7 @@ index 594ff02..b7e20ba 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3234,8 @@ public:
+@@ -3104,7 +3236,8 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2051,7 +2084,7 @@ index 594ff02..b7e20ba 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,23 +3743,66 @@ public:
+@@ -3612,23 +3745,71 @@ public:
  		return -1;
  	}
  
@@ -2094,6 +2127,11 @@ index 594ff02..b7e20ba 100644
 +					}
 +				}
 +				
++				if (_node->_directPathCount == 0) {
++					// 没有直连地址, 需要发送tcp数据
++					needSendTCP = true;
++				}
++				
 +				
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
@@ -2120,7 +2158,7 @@ index 594ff02..b7e20ba 100644
  									if (_tcpFallbackTunnel->writeq.length() == 0) {
  										_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
  										flushNow = true;
-@@ -3646,10 +3820,14 @@ public:
+@@ -3646,10 +3827,14 @@ public:
  								}
  							}
  							if (flushNow) {
@@ -2136,7 +2174,7 @@ index 594ff02..b7e20ba 100644
  							const InetAddress addr(_fallbackRelayAddress);
  							TcpConnection *tc = new TcpConnection();
  							{
-@@ -3670,12 +3848,17 @@ public:
+@@ -3670,12 +3855,17 @@ public:
  				}
  			}
  		}
@@ -2155,7 +2193,7 @@ index 594ff02..b7e20ba 100644
  		// Even when relaying we still send via UDP. This way if UDP starts
  		// working we can instantly "fail forward" to it and stop using TCP
  		// proxy fallback, which is slow.
-@@ -3909,8 +4092,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4099,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
