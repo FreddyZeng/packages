@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..c167431 100644
+index 95f093b..107de20 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,22 +291,22 @@
@@ -427,15 +427,6 @@ index 95f093b..c167431 100644
  
  /**
   * A defensive timer to prevent path quality metrics from being
-@@ -682,7 +682,7 @@
- /**
-  * Time horizon for path negotiation paths cutoff
-  */
--#define ZT_PATH_NEGOTIATION_CUTOFF_TIME 60000
-+#define ZT_PATH_NEGOTIATION_CUTOFF_TIME 10000
- 
- /**
-  * Maximum number of path negotiations within cutoff time
 @@ -746,7 +746,7 @@
  /**
   * Desired buffer size for UDP sockets (used in service and osdep but defined here)
@@ -1184,7 +1175,7 @@ index d6167ce..5477d49 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..ca2442d 100644
+index f77b4e6..4090d4a 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1313,7 +1304,7 @@ index f77b4e6..ca2442d 100644
  	// all known external addresses for ourselves. If we already have a path this
  	// is done less frequently.
 -	if (this->trustEstablished(now)) {
-+	if (this->trustEstablished(now) || addNewPath) {
++	if (this->trustEstablished(now) || addNewPath || true) {
  		const int64_t sinceLastPush = now - _lastDirectPathPushSent;
  		bool lowBandwidth = RR->node->lowBandwidthModeEnabled();
 -		int timerScale = lowBandwidth ? 16 : 1;
