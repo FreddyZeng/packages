@@ -576,7 +576,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..f738d6f 100644
+index 2537c0f..bac5e7e 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -743,7 +743,7 @@ index 2537c0f..f738d6f 100644
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
 -	_path->send(RR,tPtr,outp.data(),outp.size(),now);
-+	_path->send(RR,tPtr,outp.data(),outp.size(),now,outp.verb());
++	_path->send(RR,tPtr,outp.data(),outp.size(),now,Packet::VERB_HELLO);
  
  	peer->setRemoteVersion(protoVersion,vMajor,vMinor,vRevision); // important for this to go first so received() knows the version
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_HELLO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
@@ -826,7 +826,7 @@ index 2537c0f..f738d6f 100644
  		Metrics::pkt_ok_out++;
  		outp.armor(peer->key(),true,peer->aesKeysIfSupported());
 -		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
++		_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),Packet::VERB_WHOIS);
  	}
  
  	peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_WHOIS,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
@@ -844,7 +844,7 @@ index 2537c0f..f738d6f 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),Packet::VERB_EXT_FRAME);
  		}
  
  		peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_EXT_FRAME,0,Packet::VERB_NOP,true,nwid,flowId);
@@ -853,7 +853,7 @@ index 2537c0f..f738d6f 100644
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
 -	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
++	_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),Packet::VERB_ECHO);
  
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_ECHO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
  
@@ -871,7 +871,7 @@ index 2537c0f..f738d6f 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),Packet::VERB_ECHO);
  		}
  	}
  
@@ -880,7 +880,7 @@ index 2537c0f..f738d6f 100644
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
 -			_path->send(RR,tPtr,outp.data(),outp.size(),now);
-+			_path->send(RR,tPtr,outp.data(),outp.size(),now,outp.verb());
++			_path->send(RR,tPtr,outp.data(),outp.size(),now,Packet::VERB_MULTICAST_GATHER);
  		}
  	}
  
@@ -889,7 +889,7 @@ index 2537c0f..f738d6f 100644
  				peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  				Metrics::pkt_ok_out++;
 -				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now());
-+				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),outp.verb());
++				_path->send(RR,tPtr,outp.data(),outp.size(),RR->node->now(),Packet::VERB_MULTICAST_FRAME);
  			}
  		}
  
@@ -1755,7 +1755,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..37f665f 100644
+index 594ff02..d74578a 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2084,7 +2084,7 @@ index 594ff02..37f665f 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,23 +3745,71 @@ public:
+@@ -3612,23 +3745,72 @@ public:
  		return -1;
  	}
  
@@ -2108,7 +2108,6 @@ index 594ff02..37f665f 100644
 +				
 +				if (verb == Packet::VERB_NOP ||
 +					verb == Packet::VERB_HELLO ||
-+					verb == Packet::VERB_OK ||
 +					verb == Packet::VERB_ERROR ||
 +					verb == Packet::VERB_WHOIS ||
 +					verb == Packet::VERB_RENDEZVOUS ||
@@ -2118,13 +2117,15 @@ index 594ff02..37f665f 100644
 +					verb == Packet::VERB_NETWORK_CONFIG ||
 +					verb == Packet::VERB_NETWORK_CREDENTIALS) {
 +					
-+					if (path) {
-+						if (!isTCPPath && path->alive(_node->now()) == false) {
-+							needSendTCP = true;
-+						}
-+					} else {
-+						needSendTCP = true;
-+					}
++//					if (path) {
++//						if (!isTCPPath && path->alive(_node->now()) == false) {
++//							needSendTCP = true;
++//						}
++//					} else {
++//						needSendTCP = true;
++//					}
++					
++					needSendTCP = true;
 +				}
 +				
 +				if (_node->_directPathCount == 0) {
@@ -2158,7 +2159,7 @@ index 594ff02..37f665f 100644
  									if (_tcpFallbackTunnel->writeq.length() == 0) {
  										_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
  										flushNow = true;
-@@ -3646,10 +3827,14 @@ public:
+@@ -3646,10 +3828,14 @@ public:
  								}
  							}
  							if (flushNow) {
@@ -2174,7 +2175,7 @@ index 594ff02..37f665f 100644
  							const InetAddress addr(_fallbackRelayAddress);
  							TcpConnection *tc = new TcpConnection();
  							{
-@@ -3670,12 +3855,17 @@ public:
+@@ -3670,12 +3856,17 @@ public:
  				}
  			}
  		}
@@ -2193,7 +2194,7 @@ index 594ff02..37f665f 100644
  		// Even when relaying we still send via UDP. This way if UDP starts
  		// working we can instantly "fail forward" to it and stop using TCP
  		// proxy fallback, which is slow.
-@@ -3909,8 +4099,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4100,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
