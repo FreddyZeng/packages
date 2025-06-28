@@ -1446,7 +1446,7 @@ index f77b4e6..4090d4a 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..bba587c 100644
+index 777a1e9..527a6c1 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1473,7 +1473,7 @@ index 777a1e9..bba587c 100644
  		SharedPtr<Path> bp(getAppropriatePath(now,force));
  		if (bp) {
 -			return bp->send(RR,tPtr,data,len,now);
-+			return bp->send(RR,tPtr,data,len,now,Packet::VERB_NOTCP);
++			return bp->send(RR,tPtr,data,len,now,Packet::VERB_RENDEZVOUS);
  		}
  		return false;
  	}
