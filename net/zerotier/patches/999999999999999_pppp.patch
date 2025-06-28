@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..d6e952b 100644
+index 95f093b..c167431 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,22 +291,22 @@
@@ -265,6 +265,15 @@ index 95f093b..d6e952b 100644
  
  /**
   * Receive queue entry timeout
+@@ -348,7 +348,7 @@
+ /**
+  * Period for multicast LIKE announcements
+  */
+-#define ZT_MULTICAST_ANNOUNCE_PERIOD 60000
++#define ZT_MULTICAST_ANNOUNCE_PERIOD 5000
+ 
+ /**
+  * Delay between explicit MULTICAST_GATHER requests for a given multicast channel
 @@ -370,12 +370,12 @@
  /**
   * How often the local.conf file is checked for changes (service, should be moved there)
@@ -418,6 +427,15 @@ index 95f093b..d6e952b 100644
  
  /**
   * A defensive timer to prevent path quality metrics from being
+@@ -682,7 +682,7 @@
+ /**
+  * Time horizon for path negotiation paths cutoff
+  */
+-#define ZT_PATH_NEGOTIATION_CUTOFF_TIME 60000
++#define ZT_PATH_NEGOTIATION_CUTOFF_TIME 10000
+ 
+ /**
+  * Maximum number of path negotiations within cutoff time
 @@ -746,7 +746,7 @@
  /**
   * Desired buffer size for UDP sockets (used in service and osdep but defined here)
