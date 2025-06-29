@@ -1448,7 +1448,7 @@ index f77b4e6..f50319c 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..96677c0 100644
+index 777a1e9..b76edb8 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1476,7 +1476,7 @@ index 777a1e9..96677c0 100644
  		if (bp) {
 -			return bp->send(RR,tPtr,data,len,now);
 +			// 关键快速连接
-+			return bp->send(RR,tPtr,data,len,now,Packet::VERB_RENDEZVOUS);
++			return bp->send(RR,tPtr,data,len,now,bp->isTCPPacket() ? Packet::VERB_RENDEZVOUS : Packet::VERB_NOTCP);
  		}
  		return false;
  	}
@@ -1580,7 +1580,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..77481c8 100644
+index 7664f7a..ade3ffc 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1618,25 +1618,34 @@ index 7664f7a..77481c8 100644
  				}
  			}
  
-@@ -119,7 +130,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
- 						return;
+@@ -197,8 +208,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
--					if (fragment.hops() < ZT_RELAY_MAX_HOPS) {
-+					if (fragment.hops() < ZT_RELAY_MAX_HOPS || needIntroduce) {
- 						fragment.incrementHops();
- 
- 						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
-@@ -198,7 +209,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
- 
  					Packet packet(data,len);
++					
++					Packet::Verb verb = packet.verb();
++					bool needSendTCP = false;
++					
++					if (verb == Packet::VERB_HELLO ||
++						verb == Packet::VERB_ERROR ||
++						verb == Packet::VERB_WHOIS ||
++						verb == Packet::VERB_RENDEZVOUS ||
++						verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++						verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++						verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++						verb == Packet::VERB_NETWORK_CONFIG ||
++						verb == Packet::VERB_NETWORK_CREDENTIALS) {
++						
++						needSendTCP = true;
++					}
++					
  
 -					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
-+					if (packet.hops() < ZT_RELAY_MAX_HOPS || needIntroduce) {
++					if (packet.hops() < ZT_RELAY_MAX_HOPS || needSendTCP) {
  						packet.incrementHops();
  						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
  						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
-@@ -968,7 +979,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -968,7 +996,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1647,7 +1656,7 @@ index 7664f7a..77481c8 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1163,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1180,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1656,7 +1665,7 @@ index 7664f7a..77481c8 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1164,7 +1177,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1164,7 +1194,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  			for(unsigned int fno=1;fno<totalFragments;++fno) {
  				chunkSize = std::min(remaining,(unsigned int)(mtu - ZT_PROTO_MIN_FRAGMENT_LENGTH));
  				Packet::Fragment frag(packet,fragStart,chunkSize,fno,totalFragments);
@@ -1767,7 +1776,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..f6b7eb5 100644
+index 594ff02..aa7a8cb 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2096,7 +2105,7 @@ index 594ff02..f6b7eb5 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,23 +3745,71 @@ public:
+@@ -3612,23 +3745,92 @@ public:
  		return -1;
  	}
  
@@ -2118,26 +2127,26 @@ index 594ff02..f6b7eb5 100644
 +				
 +				isTCPPath = path->isTCPPacket();
 +				
-+//				if (verb == Packet::VERB_HELLO ||
-+//					verb == Packet::VERB_ERROR ||
-+//					verb == Packet::VERB_WHOIS ||
-+//					verb == Packet::VERB_RENDEZVOUS ||
-+//					verb == Packet::VERB_PUSH_DIRECT_PATHS ||
-+//					verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
-+//					verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
-+//					verb == Packet::VERB_NETWORK_CONFIG ||
-+//					verb == Packet::VERB_NETWORK_CREDENTIALS) {
-+//					
-+////					if (path) {
-+////						if (!isTCPPath && path->alive(_node->now()) == false) {
-+////							needSendTCP = true;
-+////						}
-+////					} else {
-+////						needSendTCP = true;
-+////					}
-+//					
-+//					needSendTCP = true;
-+//				}
++				if (verb == Packet::VERB_HELLO ||
++					verb == Packet::VERB_ERROR ||
++					verb == Packet::VERB_WHOIS ||
++					verb == Packet::VERB_RENDEZVOUS ||
++					verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++					verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++					verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++					verb == Packet::VERB_NETWORK_CONFIG ||
++					verb == Packet::VERB_NETWORK_CREDENTIALS) {
++					
++//					if (path) {
++//						if (!isTCPPath && path->alive(_node->now()) == false) {
++//							needSendTCP = true;
++//						}
++//					} else {
++//						needSendTCP = true;
++//					}
++					
++					needSendTCP = true;
++				}
 +				
 +//				if (_node->_directPathCount == 0) {
 +//					// 没有直连地址, 需要发送tcp数据
@@ -2147,6 +2156,27 @@ index 594ff02..f6b7eb5 100644
 +				
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
++					
++					if (!_tcpFallbackTunnel){
++						
++//							fprintf(stderr, "nodeWirePacketSendFunction 创建TcpConnection, isTCPPath:%d, isTCPOnly:%d, _forceTcpRelay:%d, isPathAlive:%d\n", isTCPPath, isTCPOnly, _forceTcpRelay, isPathAlive);
++						
++						const InetAddress addr(_fallbackRelayAddress);
++						TcpConnection *tc = new TcpConnection();
++						{
++							Mutex::Lock _l(_tcpConnections_m);
++							_tcpConnections.push_back(tc);
++						}
++						tc->type = TcpConnection::TCP_TUNNEL_OUTGOING;
++						tc->remoteAddr = addr;
++						tc->lastReceive = OSUtils::now();
++						tc->parent = this;
++						tc->sock = (PhySocket *)0; // set in connect handler
++						tc->messageSize = 0;
++						bool connected = false;
++						_phy.tcpConnect(reinterpret_cast<const struct sockaddr *>(&addr),connected,(void *)tc,true);
++					}
++					
  					// Engage TCP tunnel fallback if we haven't received anything valid from a global
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
@@ -2170,7 +2200,7 @@ index 594ff02..f6b7eb5 100644
  									if (_tcpFallbackTunnel->writeq.length() == 0) {
  										_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
  										flushNow = true;
-@@ -3646,10 +3827,14 @@ public:
+@@ -3646,10 +3848,14 @@ public:
  								}
  							}
  							if (flushNow) {
@@ -2186,7 +2216,7 @@ index 594ff02..f6b7eb5 100644
  							const InetAddress addr(_fallbackRelayAddress);
  							TcpConnection *tc = new TcpConnection();
  							{
-@@ -3670,12 +3855,17 @@ public:
+@@ -3670,12 +3876,17 @@ public:
  				}
  			}
  		}
@@ -2205,7 +2235,7 @@ index 594ff02..f6b7eb5 100644
  		// Even when relaying we still send via UDP. This way if UDP starts
  		// working we can instantly "fail forward" to it and stop using TCP
  		// proxy fallback, which is slow.
-@@ -3909,8 +4099,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4120,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
