@@ -1097,10 +1097,21 @@ index f9d0548..9a22fd6 100644
  
  } // namespace ZeroTier
 diff --git a/node/Packet.hpp b/node/Packet.hpp
-index f607d1f..ac2863c 100644
+index f607d1f..be32a66 100644
 --- a/node/Packet.hpp
 +++ b/node/Packet.hpp
-@@ -535,6 +535,8 @@ public:
+@@ -507,6 +507,10 @@ public:
+ 		 * @return Fragment ZT hop count
+ 		 */
+ 		inline unsigned int hops() const { return (unsigned int)((*this)[ZT_PACKET_FRAGMENT_IDX_HOPS]); }
++		
++		inline void setForceSendHopFlag() const { (*this)[ZT_PACKET_FRAGMENT_IDX_HOPS] = 0x80; }
++		
++		inline bool isForceSendHopFlag() const {  return (*this)[ZT_PACKET_FRAGMENT_IDX_HOPS] == 0x80; }
+ 
+ 		/**
+ 		 * Increment this packet's hop count
+@@ -535,6 +539,8 @@ public:
  	 */
  	enum Verb /* Max value: 32 (5 bits) */
  	{
@@ -1595,7 +1606,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..dd57a53 100644
+index 7664f7a..5eeeaea 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1633,7 +1644,25 @@ index 7664f7a..dd57a53 100644
  				}
  			}
  
-@@ -197,8 +208,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -118,9 +129,16 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+ 					if ( (!RR->topology->amUpstream()) && (!path->trustEstablished(now)) ) {
+ 						return;
+ 					}
++					
++					bool isForceSendHopFlag = fragment.isForceSendHopFlag(); // 强制转发分片标记
+ 
+-					if (fragment.hops() < ZT_RELAY_MAX_HOPS) {
++					if (fragment.hops() < ZT_RELAY_MAX_HOPS || isForceSendHopFlag) {
+ 						fragment.incrementHops();
++						
++						if (isForceSendHopFlag) {
++							// 如果是强制转发, 继续改成强制转发标记
++							fragment.setForceSendHopFlag();
++						}
+ 
+ 						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
+ 						// It wouldn't hurt anything, just redundant and unnecessary.
+@@ -197,8 +215,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
  					Packet packet(data,len);
@@ -1660,7 +1689,7 @@ index 7664f7a..dd57a53 100644
  						packet.incrementHops();
  						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
  						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
-@@ -968,7 +996,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -968,7 +1003,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1671,7 +1700,7 @@ index 7664f7a..dd57a53 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1180,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1187,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1680,11 +1709,38 @@ index 7664f7a..dd57a53 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1164,7 +1194,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1197,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+ 				++fragsRemaining;
+ 			}
+ 			const unsigned int totalFragments = fragsRemaining + 1;
++			
++			Packet::Verb verb = packet.verb();
++			bool forceSend = false;
++			
++			if (verb == Packet::VERB_HELLO ||
++				verb == Packet::VERB_ERROR ||
++				verb == Packet::VERB_WHOIS ||
++				verb == Packet::VERB_RENDEZVOUS ||
++				verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++				verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++				verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++				verb == Packet::VERB_NETWORK_CONFIG ||
++				verb == Packet::VERB_NETWORK_CREDENTIALS) {
++				
++				forceSend = true;
++			}
+ 
  			for(unsigned int fno=1;fno<totalFragments;++fno) {
  				chunkSize = std::min(remaining,(unsigned int)(mtu - ZT_PROTO_MIN_FRAGMENT_LENGTH));
  				Packet::Fragment frag(packet,fragStart,chunkSize,fno,totalFragments);
 -				viaPath->send(RR,tPtr,frag.data(),frag.size(),now);
++				
++				if (forceSend) {
++					// 强制转发分片标记
++					frag.setForceSendHopFlag();
++				}
++				
++				
 +				viaPath->send(RR,tPtr,frag.data(),frag.size(),now,packet.verb());
  				fragStart += chunkSize;
  				remaining -= chunkSize;
