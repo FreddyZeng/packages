@@ -1847,7 +1847,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..41c9cae 100644
+index 594ff02..6b0071c 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1958,7 +1958,35 @@ index 594ff02..41c9cae 100644
  			}
  #endif
  
-@@ -1183,7 +1214,7 @@ public:
+@@ -1156,6 +1187,27 @@ public:
+ 						_node->orbit((void *)0,Utils::hexStrToU64(f->substr(0,dot).c_str()),0);
+ 				}
+ 			}
++			
++#ifdef ZT_TCP_FALLBACK_RELAY
++		if(_allowTcpFallbackRelay && !_tcpFallbackTunnel) {
++			const InetAddress addr(_fallbackRelayAddress);
++			TcpConnection *tc = new TcpConnection();
++			{
++				Mutex::Lock _l(_tcpConnections_m);
++				_tcpConnections.push_back(tc);
++			}
++			tc->type = TcpConnection::TCP_TUNNEL_OUTGOING;
++			tc->remoteAddr = addr;
++			tc->lastReceive = OSUtils::now();
++			tc->parent = this;
++			tc->sock = (PhySocket *)0; // set in connect handler
++			tc->messageSize = 0;
++			bool connected = false;
++			_phy.tcpConnect(reinterpret_cast<const struct sockaddr *>(&addr),connected,(void *)tc,true);
++		}
++		
++#endif // ZT_TCP_FALLBACK_RELAY
++			
+ 
+ 			// Main I/O loop
+ 			_nextBackgroundTaskDeadline = 0;
+@@ -1183,7 +1235,7 @@ public:
  
  				// Attempt to detect sleep/wake events by detecting delay overruns
  				bool restarted = false;
@@ -1967,7 +1995,7 @@ index 594ff02..41c9cae 100644
  					_lastRestart = now;
  					restarted = true;
  				}
-@@ -1262,6 +1293,8 @@ public:
+@@ -1262,6 +1314,8 @@ public:
  						}
  					}
  				}
@@ -1976,7 +2004,7 @@ index 594ff02..41c9cae 100644
  
  				// Run background task processor in core if it's time to do so
  				int64_t dl = _nextBackgroundTaskDeadline;
-@@ -1271,8 +1304,9 @@ public:
+@@ -1271,8 +1325,9 @@ public:
  				}
  
  				// Close TCP fallback tunnel if we have direct UDP
@@ -1987,7 +2015,7 @@ index 594ff02..41c9cae 100644
  				}
  
  				// Sync multicast group memberships
-@@ -2189,6 +2223,7 @@ public:
+@@ -2189,6 +2244,7 @@ public:
              json &settings = out["config"]["settings"];
              settings["allowTcpFallbackRelay"] = OSUtils::jsonBool(settings["allowTcpFallbackRelay"],_allowTcpFallbackRelay);
              settings["forceTcpRelay"] = OSUtils::jsonBool(settings["forceTcpRelay"],_forceTcpRelay);
@@ -1995,7 +2023,7 @@ index 594ff02..41c9cae 100644
              settings["primaryPort"] = OSUtils::jsonInt(settings["primaryPort"],(uint64_t)_primaryPort) & 0xffff;
              settings["secondaryPort"] = OSUtils::jsonInt(settings["secondaryPort"],(uint64_t)_ports[1]) & 0xffff;
              settings["tertiaryPort"] = OSUtils::jsonInt(settings["tertiaryPort"],(uint64_t)_tertiaryPort) & 0xffff;
-@@ -2572,6 +2607,59 @@ public:
+@@ -2572,6 +2628,59 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -2055,7 +2083,7 @@ index 594ff02..41c9cae 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2669,9 @@ public:
+@@ -2581,6 +2690,9 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2065,7 +2093,7 @@ index 594ff02..41c9cae 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2748,8 @@ public:
+@@ -2657,6 +2769,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2074,7 +2102,7 @@ index 594ff02..41c9cae 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3043,8 @@ public:
+@@ -2950,7 +3064,8 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2084,7 +2112,7 @@ index 594ff02..41c9cae 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3071,17 @@ public:
+@@ -2977,10 +3092,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2104,7 +2132,7 @@ index 594ff02..41c9cae 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3124,7 @@ public:
+@@ -3023,6 +3145,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2112,7 +2140,7 @@ index 594ff02..41c9cae 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3163,7 @@ public:
+@@ -3061,7 +3184,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2121,7 +2149,7 @@ index 594ff02..41c9cae 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3198,13 @@ public:
+@@ -3096,7 +3219,13 @@ public:
  								}
  
  								if (from) {
@@ -2135,7 +2163,7 @@ index 594ff02..41c9cae 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3212,8 @@ public:
+@@ -3104,7 +3233,8 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2145,7 +2173,7 @@ index 594ff02..41c9cae 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,8 +3721,40 @@ public:
+@@ -3612,8 +3742,40 @@ public:
  		return -1;
  	}
  
@@ -2187,7 +2215,7 @@ index 594ff02..41c9cae 100644
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3764,62 @@ public:
+@@ -3623,74 +3785,62 @@ public:
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
@@ -2308,7 +2336,7 @@ index 594ff02..41c9cae 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4038,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4059,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
