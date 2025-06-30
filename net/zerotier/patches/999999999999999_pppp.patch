@@ -1097,7 +1097,7 @@ index f9d0548..9a22fd6 100644
  
  } // namespace ZeroTier
 diff --git a/node/Packet.hpp b/node/Packet.hpp
-index f607d1f..be32a66 100644
+index f607d1f..c64f789 100644
 --- a/node/Packet.hpp
 +++ b/node/Packet.hpp
 @@ -507,6 +507,10 @@ public:
@@ -1105,7 +1105,7 @@ index f607d1f..be32a66 100644
  		 */
  		inline unsigned int hops() const { return (unsigned int)((*this)[ZT_PACKET_FRAGMENT_IDX_HOPS]); }
 +		
-+		inline void setForceSendHopFlag() const { (*this)[ZT_PACKET_FRAGMENT_IDX_HOPS] = 0x80; }
++		inline void setForceSendHopFlag() { (*this)[ZT_PACKET_FRAGMENT_IDX_HOPS] = 0x80; }
 +		
 +		inline bool isForceSendHopFlag() const {  return (*this)[ZT_PACKET_FRAGMENT_IDX_HOPS] == 0x80; }
  
