@@ -1847,7 +1847,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..6b0071c 100644
+index 594ff02..d0810cb 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2209,13 +2209,13 @@ index 594ff02..6b0071c 100644
 +		
 +		bool returnResult = result;
 +		
-+		if (returnResult == -1) {
++		if (returnResult == -1 || _forceTcpRelay) {
 +			// udp 发送失败, 使用tcp发送
 +			
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3785,62 @@ public:
+@@ -3623,74 +3785,67 @@ public:
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
@@ -2258,6 +2258,10 @@ index 594ff02..6b0071c 100644
 +								_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr))),4);
 +								_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_port))),2);
 +								_tcpFallbackTunnel->writeq.append((const char *)data,len);
++								
++								returnResult = 0;
++							} else {
++								returnResult = -1;
  							}
 -							if (flushNow) {
 -								void *tmpptr = (void *)_tcpFallbackTunnel;
@@ -2284,7 +2288,6 @@ index 594ff02..6b0071c 100644
 +							phyOnTcpWritable(_tcpFallbackTunnel->sock,&tmpptr);
 +						}
 +						
-+						returnResult = 1;
 +					} else {
 +						const InetAddress addr(_fallbackRelayAddress);
 +						TcpConnection *tc = new TcpConnection();
@@ -2300,6 +2303,8 @@ index 594ff02..6b0071c 100644
 +						tc->messageSize = 0;
 +						bool connected = false;
 +						_phy.tcpConnect(reinterpret_cast<const struct sockaddr *>(&addr),connected,(void *)tc,true);
++						
++						returnResult = -1;
  					}
  					_lastSendToGlobalV4 = now;
  				}
@@ -2336,7 +2341,7 @@ index 594ff02..6b0071c 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4059,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4064,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
