@@ -1097,7 +1097,7 @@ index f9d0548..9a22fd6 100644
  
  } // namespace ZeroTier
 diff --git a/node/Packet.hpp b/node/Packet.hpp
-index f607d1f..c64f789 100644
+index f607d1f..b438f4c 100644
 --- a/node/Packet.hpp
 +++ b/node/Packet.hpp
 @@ -507,6 +507,10 @@ public:
@@ -1111,20 +1111,21 @@ index f607d1f..c64f789 100644
  
  		/**
  		 * Increment this packet's hop count
-@@ -535,6 +539,8 @@ public:
+@@ -535,6 +539,9 @@ public:
  	 */
  	enum Verb /* Max value: 32 (5 bits) */
  	{
 +		VERB_NOTCP = 0x1f,
++		VERB_FORCETCP = 0x1e,
 +		
  		/**
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..8e686ec 100644
+index 00ea90f..f74c98c 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
-@@ -17,9 +17,10 @@
+@@ -17,9 +17,20 @@
  
  namespace ZeroTier {
  
@@ -1132,6 +1133,16 @@ index 00ea90f..8e686ec 100644
 +bool Path::send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
  {
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
++	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
++	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
++		_lastOut = now;
++		return true;
++	}
++	return false;
++}
++
++bool Path::sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
++{
 +	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
 +	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
  		_lastOut = now;
@@ -1193,7 +1204,7 @@ index d6167ce..5477d49 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..55021e1 100644
+index f77b4e6..5648285 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1351,30 +1362,16 @@ index f77b4e6..55021e1 100644
  SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId)
  {
  	Mutex::Lock _l(_paths_m);
-@@ -263,6 +352,9 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -263,6 +352,43 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	if(_bond && _bond->isReady()) {
  		return _bond->getAppropriatePath(now, flowId);
  	}
 +	
 +	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
-+	
- 	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
- 	/**
- 	 * Send traffic across the highest quality path only. This algorithm will still
-@@ -271,7 +363,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
- 	long bestPathQuality = 2147483647;
- 	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
- 		if (_paths[i].p) {
--			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
- 				const long q = _paths[i].p->quality(now) / _paths[i].priority;
- 				if (q <= bestPathQuality) {
- 					bestPathQuality = q;
-@@ -282,6 +374,26 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
- 			break;
- 		}
- 	}
-+	
++	/**
++	 * Send traffic across the highest quality path only. This algorithm will still
++	 * use the old path quality metric from protocol version 9.
++	 */
 +	bestPathQuality = 2147483647;
 +	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
 +		if (_paths[i].p) {
@@ -1394,10 +1391,39 @@ index f77b4e6..55021e1 100644
 +		return _paths[bestUDPPath].p;
 +	}
 +	
++	return SharedPtr<Path>();
++}
++
++// flowId 获取path
++SharedPtr<Path> Peer::getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId)
++{
++	Mutex::Lock _l(_paths_m);
++	Mutex::Lock _lb(_bond_m);
++	if(_bond && _bond->isReady()) {
++		return _bond->getAppropriatePath(now, flowId);
++	}
++	
+ 	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
+ 	/**
+ 	 * Send traffic across the highest quality path only. This algorithm will still
+@@ -271,7 +397,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+ 	long bestPathQuality = 2147483647;
+ 	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
+ 		if (_paths[i].p) {
+-			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
++			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
+ 				const long q = _paths[i].p->quality(now) / _paths[i].priority;
+ 				if (q <= bestPathQuality) {
+ 					bestPathQuality = q;
+@@ -282,6 +408,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+ 			break;
+ 		}
+ 	}
++	
  	if (bestPath != ZT_MAX_PEER_NETWORK_PATHS) {
  		return _paths[bestPath].p;
  	}
-@@ -393,7 +505,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -393,7 +520,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(_key,true,aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1406,7 +1432,7 @@ index f77b4e6..55021e1 100644
  			} else {
  				Packet outp(other->_id.address(),RR->identity.address(),Packet::VERB_RENDEZVOUS);
  				outp.append((uint8_t)0);
-@@ -408,7 +520,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -408,7 +535,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(other->_key,true,other->aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1415,7 +1441,7 @@ index f77b4e6..55021e1 100644
  			}
  			++alt;
  		}
-@@ -449,11 +561,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +576,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
@@ -1449,7 +1475,7 @@ index f77b4e6..55021e1 100644
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +600,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +615,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
@@ -1474,7 +1500,7 @@ index f77b4e6..55021e1 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..b76edb8 100644
+index 777a1e9..a866bfc 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1496,17 +1522,46 @@ index 777a1e9..b76edb8 100644
  	/**
  	 * Check whether we have an active path to this peer via the given address
  	 *
-@@ -143,7 +146,8 @@ public:
+@@ -143,7 +146,28 @@ public:
  	{
  		SharedPtr<Path> bp(getAppropriatePath(now,force));
  		if (bp) {
 -			return bp->send(RR,tPtr,data,len,now);
 +			// 关键快速连接
-+			return bp->send(RR,tPtr,data,len,now,bp->isTCPPacket() ? Packet::VERB_RENDEZVOUS : Packet::VERB_NOTCP);
++			return bp->send(RR,tPtr,data,len,now,Packet::VERB_NOTCP);
++		}
++		return false;
++	}
++	
++	/**
++	 * Send via best direct path
++	 *
++	 * @param tPtr Thread pointer to be handed through to any callbacks called as a result of this call
++	 * @param data Packet data
++	 * @param len Packet length
++	 * @param now Current time
++	 * @param force If true, send even if path is not alive
++	 * @return True if we actually sent something
++	 */
++	inline bool sendDirectByTCP(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
++	{
++		SharedPtr<Path> bp(getAppropriatePathByTCP(now,force));
++		if (bp) {
++			// 关键快速连接
++			return bp->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP);
  		}
  		return false;
  	}
-@@ -540,7 +544,15 @@ public:
+@@ -191,6 +215,8 @@ public:
+ 	 * @return Best current path or NULL if none
+ 	 */
+ 	SharedPtr<Path> getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId = -1);
++	
++	SharedPtr<Path> getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId = -1);
+ 
+ 	/**
+ 	 * Send VERB_RENDEZVOUS to this and another peer via the best common IP scope and path
+@@ -540,7 +566,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -1522,7 +1577,7 @@ index 777a1e9..b76edb8 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
  			ptr += 2;
-@@ -620,6 +632,49 @@ public:
+@@ -620,6 +654,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -1572,7 +1627,7 @@ index 777a1e9..b76edb8 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +689,10 @@ private:
+@@ -634,6 +711,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -1606,7 +1661,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..5eeeaea 100644
+index 7664f7a..67f5e92 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1662,7 +1717,26 @@ index 7664f7a..5eeeaea 100644
  
  						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
  						// It wouldn't hurt anything, just redundant and unnecessary.
-@@ -197,8 +215,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -130,6 +148,18 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+ 							relayTo = RR->topology->getUpstreamPeer();
+ 							if (relayTo) {
+ 								relayTo->sendDirect(tPtr,fragment.data(),fragment.size(),now,true);
++							} else {
++								// relay tcp
++								
++								relayTo = RR->topology->getPeer(tPtr,destination);
++								if ((!relayTo)||(!relayTo->sendDirectByTCP(tPtr,fragment.data(),fragment.size(),now,false))) {
++									// Don't know peer or no direct path -- so relay via someone upstream
++									relayTo = RR->topology->getUpstreamPeer();
++									if (relayTo) {
++										relayTo->sendDirectByTCP(tPtr,fragment.data(),fragment.size(),now,true);
++									}
++								}
++								
+ 							}
+ 						}
+ 					}
+@@ -197,8 +227,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
  					Packet packet(data,len);
@@ -1689,7 +1763,36 @@ index 7664f7a..5eeeaea 100644
  						packet.incrementHops();
  						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
  						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
-@@ -968,7 +1003,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -217,6 +264,28 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+ 										relayTo->introduce(tPtr,now,sourcePeer);
+ 									}
+ 								}
++							} else {
++								// relay tcp
++								
++								relayTo = RR->topology->getPeer(tPtr,destination);
++								if ((relayTo)&&(relayTo->sendDirectByTCP(tPtr,packet.data(),packet.size(),now,false))) {
++									if ((source != RR->identity.address())&&(_shouldUnite(now,source,destination))) {
++										const SharedPtr<Peer> sourcePeer(RR->topology->getPeer(tPtr,source));
++										if (sourcePeer) {
++											relayTo->introduce(tPtr,now,sourcePeer);
++										}
++									}
++								} else {
++									relayTo = RR->topology->getUpstreamPeer();
++									if ((relayTo)&&(relayTo->address() != source)) {
++										if (relayTo->sendDirectByTCP(tPtr,packet.data(),packet.size(),now,true)) {
++											const SharedPtr<Peer> sourcePeer(RR->topology->getPeer(tPtr,source));
++											if (sourcePeer) {
++												relayTo->introduce(tPtr,now,sourcePeer);
++											}
++										}
++									}
++								}
+ 							}
+ 						}
+ 					}
+@@ -968,7 +1037,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1700,7 +1803,7 @@ index 7664f7a..5eeeaea 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1187,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1221,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1709,7 +1812,7 @@ index 7664f7a..5eeeaea 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1197,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1231,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
@@ -1847,7 +1950,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..d0810cb 100644
+index 594ff02..2d15ca9 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2173,7 +2276,7 @@ index 594ff02..d0810cb 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,8 +3742,40 @@ public:
+@@ -3612,8 +3742,47 @@ public:
  		return -1;
  	}
  
@@ -2181,15 +2284,21 @@ index 594ff02..d0810cb 100644
 +	inline int nodeWirePacketSendFunction(const int64_t localSocket,const struct sockaddr_storage *addr,const void *data,unsigned int len,unsigned int ttl,Packet::Verb verb)
  	{
 +		
-+		const InetAddress *inetAddrPtr = reinterpret_cast<const InetAddress *>(addr);
-+		const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
++//		const InetAddress *inetAddrPtr = reinterpret_cast<const InetAddress *>(addr);
++//		const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
++//		
++//		bool isTCPPath = path->isTCPPacket();
 +		
-+		bool isTCPPath = path->isTCPPacket();
++		bool isForceTCP = false;
++		
++		if (verb == Packet::VERB_FORCETCP) {
++			isForceTCP = true;
++		}
 +		
 +		
 +		bool result = -1;
 +		
-+		if (!_forceTcpRelay && !isTCPPath) {
++		if (!_forceTcpRelay && !isForceTCP) {
 +			// Even when relaying we still send via UDP. This way if UDP starts
 +			// working we can instantly "fail forward" to it and stop using TCP
 +			// proxy fallback, which is slow.
@@ -2205,17 +2314,18 @@ index 594ff02..d0810cb 100644
 +			} else {
 +				result = ((_binder.udpSendAll(_phy,addr,data,len,ttl)) ? 0 : -1);
 +			}
-+		}
++			
++			return result;
++			
++		} else {
++			
 +		
-+		bool returnResult = result;
-+		
-+		if (returnResult == -1 || _forceTcpRelay) {
-+			// udp 发送失败, 使用tcp发送
++			bool returnResult = -1;
 +			
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3785,67 @@ public:
+@@ -3623,74 +3792,65 @@ public:
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
@@ -2332,16 +2442,14 @@ index 594ff02..d0810cb 100644
 -		} else {
 -			return ((_binder.udpSendAll(_phy,addr,data,len,ttl)) ? 0 : -1);
 +			
-+			
++			return returnResult;
 +			
  		}
-+		
-+		return returnResult;
 +
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4064,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4069,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
@@ -2355,11 +2463,52 @@ index 594ff02..d0810cb 100644
  static void SnodeVirtualNetworkFrameFunction(ZT_Node *node,void *uptr,void *tptr,uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeVirtualNetworkFrameFunction(nwid,nuptr,sourceMac,destMac,etherType,vlanId,data,len); }
  static int SnodePathCheckFunction(ZT_Node *node,void *uptr,void *tptr,uint64_t ztaddr,int64_t localSocket,const struct sockaddr_storage *remoteAddr)
+diff --git a/tcp-proxy/Makefile b/tcp-proxy/Makefile
+index c14ce27..8036526 100644
+--- a/tcp-proxy/Makefile
++++ b/tcp-proxy/Makefile
+@@ -3,7 +3,7 @@ CXX=$(shell which clang++ g++ c++ 2>/dev/null | head -n 1)
+ INCLUDES?=-I../ext/prometheus-cpp-lite-1.0/core/include  -I../ext/prometheus-cpp-lite-1.0/simpleapi/include
+ 
+ all:
+-	$(CXX) -O3 -fno-rtti $(INCLUDES) -std=c++11 -pthread -frtti  -o tcp-proxy tcp-proxy.cpp ../node/Metrics.cpp
++	$(CXX) -O3 $(INCLUDES) -std=c++11 -pthread -frtti  -o tcp-proxy tcp-proxy.cpp ../node/Metrics.cpp
+ 
+ clean:
+ 	rm -f *.o tcp-proxy *.dSYM
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
-index 44bc5ea..8fbe6d6 100644
+index 44bc5ea..ec42785 100644
 --- a/tcp-proxy/tcp-proxy.cpp
 +++ b/tcp-proxy/tcp-proxy.cpp
-@@ -46,7 +46,7 @@
+@@ -19,12 +19,21 @@
+ // HACK! Will eventually use epoll() or something in Phy<> instead of select().
+ // Also be sure to change ulimit -n and fs.file-max in /etc/sysctl.conf on relays.
+ #if defined(__linux__) || defined(__LINUX__) || defined(__LINUX) || defined(LINUX)
+-#include <linux/posix_types.h>
+-#include <bits/types.h>
+-#undef __FD_SETSIZE
+-#define __FD_SETSIZE 1048576
+-#undef FD_SETSIZE
+-#define FD_SETSIZE 1048576
++// 如果是 Glibc，则继续包含 bits/types.h；否则用标准头替代
++#  if defined(__GLIBC__)
++#    include <linux/posix_types.h>
++#    include <bits/types.h>
++#  else
++#    include <sys/types.h>
++#    include <stdint.h>    // for uint*_t
++#    include <unistd.h>    // for ssize_t, off_t 等
++#  endif
++
++// 调整 FD_SETSIZE
++#  undef __FD_SETSIZE
++#  define __FD_SETSIZE 1048576
++#  undef FD_SETSIZE
++#  define FD_SETSIZE 1048576
+ #endif
+ 
+ #include <stdio.h>
+@@ -46,7 +55,7 @@
  #include "../node/Metrics.hpp"
  
  #define ZT_TCP_PROXY_CONNECTION_TIMEOUT_SECONDS 300
@@ -2368,7 +2517,7 @@ index 44bc5ea..8fbe6d6 100644
  
  using namespace ZeroTier;
  
-@@ -211,7 +211,7 @@ struct TcpProxyService
+@@ -211,7 +220,7 @@ struct TcpProxyService
  			if (c.tcpReadPtr >= 5) {
  				unsigned long mlen = ( ((((unsigned long)c.tcpReadBuf[3]) & 0xff) << 8) | (((unsigned long)c.tcpReadBuf[4]) & 0xff) );
  				if (c.tcpReadPtr >= (mlen + 5)) {
