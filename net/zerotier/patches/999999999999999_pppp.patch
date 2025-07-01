@@ -1205,7 +1205,7 @@ index d6167ce..74e59e1 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..5648285 100644
+index f77b4e6..a4895a6 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1373,7 +1373,7 @@ index f77b4e6..5648285 100644
 +	 * Send traffic across the highest quality path only. This algorithm will still
 +	 * use the old path quality metric from protocol version 9.
 +	 */
-+	bestPathQuality = 2147483647;
++	long bestPathQuality = 2147483647;
 +	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
 +		if (_paths[i].p) {
 +			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
