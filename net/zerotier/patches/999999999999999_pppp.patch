@@ -891,10 +891,28 @@ index 2537c0f..bae0699 100644
  
  } // namespace ZeroTier
 diff --git a/node/Multicaster.cpp b/node/Multicaster.cpp
-index 3a77197..519ba84 100644
+index 3a77197..3f91b50 100644
 --- a/node/Multicaster.cpp
 +++ b/node/Multicaster.cpp
-@@ -201,7 +201,7 @@ void Multicaster::send(
+@@ -180,10 +180,17 @@ void Multicaster::send(
+ 					const SharedPtr<Peer> p(RR->topology->getPeerNoCache(multicastReplicators[i]));
+ 					if ((p)&&(p->isAlive(now))) {
+ 						const SharedPtr<Path> pp(p->getAppropriatePath(now,false));
++						
++						const SharedPtr<Path> ppByTCP(p->getAppropriatePathByTCP(now,false));
++						
+ 						if ((pp)&&(pp->latency() < bestMulticastReplicatorLatency)) {
+ 							bestMulticastReplicatorLatency = pp->latency();
+ 							bestMulticastReplicatorPath = pp;
+ 							bestMulticastReplicator = p;
++						} else if ((ppByTCP)&&(ppByTCP->latency() < bestMulticastReplicatorLatency)) {
++							bestMulticastReplicatorLatency = ppByTCP->latency();
++							bestMulticastReplicatorPath = ppByTCP;
++							bestMulticastReplicator = p;
+ 						}
+ 					}
+ 				}
+@@ -201,7 +208,7 @@ void Multicaster::send(
  					}
  					outp.armor(bestMulticastReplicator->key(),true,bestMulticastReplicator->aesKeysIfSupported());
  					Metrics::pkt_multicast_frame_out++;
@@ -920,7 +938,7 @@ index 1643487..4299f8f 100644
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..3c1ecde 100644
+index 1f377c5..639dfd7 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
 @@ -211,10 +211,11 @@ ZT_ResultCode Node::processWirePacket(
@@ -946,15 +964,22 @@ index 1f377c5..3c1ecde 100644
  
  			// Unless we don't any have paths to the roots, then we shouldn't wait a long time to contact them
  			bool hasPaths = p->paths(RR->node->now()).size() > 0;
-@@ -303,6 +304,7 @@ public:
+@@ -303,8 +304,14 @@ public:
  
  			if ((!contacted)&&(_bestCurrentUpstream)) {
  				const SharedPtr<Path> up(_bestCurrentUpstream->getAppropriatePath(_now,true));
++				
++				const SharedPtr<Path> upByTCP(_bestCurrentUpstream->getAppropriatePathByTCP(_now,true));
++				
 +				// 向路径发送path
  				if (up) {
  					p->sendHELLO(_tPtr,up->localSocket(),up->address(),_now);
++				} else if (upByTCP) {
++					p->sendHELLO(_tPtr,upByTCP->localSocket(),upByTCP->address(),_now);
  				}
-@@ -402,6 +404,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+ 			}
+ 
+@@ -402,6 +409,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Ping active peers, upstreams, and others that we should always contact
  			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
  			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
@@ -963,7 +988,7 @@ index 1f377c5..3c1ecde 100644
  
  			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
  			{
-@@ -554,6 +558,7 @@ void Node::status(ZT_NodeStatus *status) const
+@@ -554,6 +563,7 @@ void Node::status(ZT_NodeStatus *status) const
  	status->online = _online ? 1 : 0;
  }
  
@@ -971,7 +996,46 @@ index 1f377c5..3c1ecde 100644
  ZT_PeerList *Node::peers() const
  {
  	std::vector< std::pair< Address,SharedPtr<Peer> > > peers(RR->topology->allPeers());
-@@ -943,10 +948,11 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -588,6 +598,11 @@ ZT_PeerList *Node::peers() const
+ 
+ 		std::vector< SharedPtr<Path> > paths(pi->second->paths(_now));
+ 		SharedPtr<Path> bestp(pi->second->getAppropriatePath(_now,false));
++		
++		SharedPtr<Path> bestpByTCP(pi->second->getAppropriatePathByTCP(_now,false));
++		
++		bool didSetPreferred = false;
++		
+ 		p->pathCount = 0;
+ 		for(std::vector< SharedPtr<Path> >::iterator path(paths.begin());path!=paths.end();++path) {
+ 			if((*path)->valid()) {
+@@ -599,6 +614,10 @@ ZT_PeerList *Node::peers() const
+ 				p->paths[p->pathCount].trustedPathId = RR->topology->getOutboundPathTrust((*path)->address());
+ 				p->paths[p->pathCount].expired = 0;
+ 				p->paths[p->pathCount].preferred = ((*path) == bestp) ? 1 : 0;
++				if (p->paths[p->pathCount].preferred) {
++					didSetPreferred = true;
++				}
++				
+ 				p->paths[p->pathCount].scope = (*path)->ipScope();
+ 				if (pi->second->bond()) {
+ 					p->paths[p->pathCount].latencyMean = (*path)->latencyMean();
+@@ -617,6 +636,15 @@ ZT_PeerList *Node::peers() const
+ 				++p->pathCount;
+ 			}
+ 		}
++		if (didSetPreferred == false) {
++			p->pathCount = 0;
++			for(std::vector< SharedPtr<Path> >::iterator path(paths.begin());path!=paths.end();++path) {
++				if((*path)->valid()) {
++					p->paths[p->pathCount].preferred = ((*path) == bestpByTCP) ? 1 : 0;
++				}
++			}
++		}
++		
+ 		if (pi->second->bond()) {
+ 			p->isBonded = pi->second->bond();
+ 			p->bondingPolicy = pi->second->bondingPolicy();
+@@ -943,10 +971,11 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
@@ -1105,10 +1169,10 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..f74c98c 100644
+index 00ea90f..8e686ec 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
-@@ -17,9 +17,20 @@
+@@ -17,9 +17,10 @@
  
  namespace ZeroTier {
  
@@ -1118,21 +1182,11 @@ index 00ea90f..f74c98c 100644
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
 +	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
 +	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
-+		_lastOut = now;
-+		return true;
-+	}
-+	return false;
-+}
-+
-+bool Path::sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
-+{
-+	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
-+	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
  		_lastOut = now;
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..74e59e1 100644
+index d6167ce..5477d49 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -99,7 +99,8 @@ public:
@@ -1155,17 +1209,16 @@ index d6167ce..74e59e1 100644
  	{}
  
  	/**
-@@ -150,7 +152,8 @@ public:
+@@ -150,7 +152,7 @@ public:
  	 * @param now Current time
  	 * @return True if transport reported success
  	 */
 -	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now);
 +	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
-+	bool sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
  
  	/**
  	 * Manually update last sent time
-@@ -371,6 +374,12 @@ public:
+@@ -371,6 +373,12 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1178,7 +1231,7 @@ index d6167ce..74e59e1 100644
  
  private:
  
-@@ -401,6 +410,8 @@ private:
+@@ -401,6 +409,8 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
@@ -1462,7 +1515,7 @@ index f77b4e6..55a2f82 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..a866bfc 100644
+index 777a1e9..62cfe09 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1523,7 +1576,19 @@ index 777a1e9..a866bfc 100644
  
  	/**
  	 * Send VERB_RENDEZVOUS to this and another peer via the best common IP scope and path
-@@ -540,7 +566,15 @@ public:
+@@ -319,8 +345,11 @@ public:
+ 			return (int)_lastComputedAggregateMeanLatency;
+ 		} else {
+ 			SharedPtr<Path> bp(getAppropriatePath(now,false));
++			SharedPtr<Path> bpByTCP(getAppropriatePathByTCP(now,false));
+ 			if (bp) {
+ 				return (unsigned int)bp->latency();
++			} else if (bpByTCP) {
++				return (unsigned int)bp->latency();
+ 			}
+ 			return 0xffff;
+ 		}
+@@ -540,7 +569,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -1539,7 +1604,7 @@ index 777a1e9..a866bfc 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
  			ptr += 2;
-@@ -620,6 +654,49 @@ public:
+@@ -620,6 +657,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -1589,7 +1654,7 @@ index 777a1e9..a866bfc 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +711,10 @@ private:
+@@ -634,6 +714,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -1623,7 +1688,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..67f5e92 100644
+index 7664f7a..be19c5b 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1765,7 +1830,26 @@ index 7664f7a..67f5e92 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1221,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1117,6 +1188,18 @@ bool Switch::_trySend(void *tPtr,Packet &packet,bool encrypt,int32_t flowId)
+ 					}
+ 				}
+ 			}
++			if (!viaPath) {
++				viaPath = peer->getAppropriatePathByTCP(now,false,flowId);
++				if (!viaPath) {
++					peer->tryMemorizedPath(tPtr,now); // periodically attempt memorized or statically defined paths, if any are known
++					const SharedPtr<Peer> relay(RR->topology->getUpstreamPeer());
++					if ( (!relay) || (!(viaPath = relay->getAppropriatePathByTCP(now,false,flowId))) ) {
++						if (!(viaPath = peer->getAppropriatePathByTCP(now,true,flowId))) {
++							return false;
++						}
++					}
++				}
++			}
+ 			if (viaPath) {
+ 				uint16_t userSpecifiedMtu = viaPath->mtu();
+ 				_sendViaSpecificPath(tPtr,peer,viaPath,userSpecifiedMtu,now,packet,encrypt,flowId);
+@@ -1150,7 +1233,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1774,7 +1858,7 @@ index 7664f7a..67f5e92 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1231,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1243,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
@@ -1870,6 +1954,23 @@ index fc272ce..91fb136 100644
  				}
  			}
  		}
+diff --git a/node/Topology.hpp b/node/Topology.hpp
+index 53c2b6d..91f7a4c 100644
+--- a/node/Topology.hpp
++++ b/node/Topology.hpp
+@@ -293,8 +293,12 @@ public:
+ 		SharedPtr<Peer> *p = (SharedPtr<Peer> *)0;
+ 		while (i.next(a,p)) {
+ 			const SharedPtr<Path> pp((*p)->getAppropriatePath(now,false));
++			const SharedPtr<Path> ppByTCP((*p)->getAppropriatePathByTCP(now,false));
++
+ 			if (pp) {
+ 				++cnt;
++			} else if (ppByTCP) {
++				++cnt;
+ 			}
+ 		}
+ 		return cnt;
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
 index 23e6393..d03879e 100644
 --- a/osdep/Binder.hpp
