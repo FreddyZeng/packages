@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..b3c242c 100644
+index 95f093b..50bea78 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,22 +291,22 @@
@@ -295,19 +295,16 @@ index 95f093b..b3c242c 100644
  
  /**
   * Do not accept HELLOs over a given path more often than this
-@@ -385,17 +385,17 @@
+@@ -385,7 +385,7 @@
  /**
   * Delay between full-fledge pings of directly connected peers
   */
 -#define ZT_PEER_PING_PERIOD 60000
-+#define ZT_PEER_PING_PERIOD 10000
++#define ZT_PEER_PING_PERIOD 15000
  
  /**
   * Paths are considered expired if they have not sent us a real packet in this long
-  */
--#define ZT_PEER_PATH_EXPIRATION ((ZT_PEER_PING_PERIOD * 4) + 3000)
-+#define ZT_PEER_PATH_EXPIRATION ((ZT_PEER_PING_PERIOD * 2) + 3000)
- 
+@@ -395,7 +395,7 @@
  /**
   * How often to retry expired paths that we're still remembering
   */
@@ -1697,7 +1694,7 @@ index f77b4e6..421d9f7 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..df98665 100644
+index 777a1e9..0de5225 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1719,7 +1716,7 @@ index 777a1e9..df98665 100644
  	/**
  	 * Check whether we have an active path to this peer via the given address
  	 *
-@@ -139,12 +142,77 @@ public:
+@@ -139,12 +142,75 @@ public:
  	 * @param force If true, send even if path is not alive
  	 * @return True if we actually sent something
  	 */
@@ -1752,10 +1749,9 @@ index 777a1e9..df98665 100644
 +					return true;
 +				}
 +			}
-+		}
+ 		}
 +
-+		// 5. If the loop completes, it means all paths in the list failed to send (or the list was empty).
-+		return false;
++		return sendDirectByTCP(tPtr, data, len, now, force);
 +	}
 +	
 +	/**
@@ -1794,13 +1790,12 @@ index 777a1e9..df98665 100644
 +					return true;
 +				}
 +			}
- 		}
++		}
 +
-+		// 5. If the loop completes, it means all paths in the list failed to send (or the list was empty).
  		return false;
  	}
  
-@@ -191,6 +259,11 @@ public:
+@@ -191,6 +257,11 @@ public:
  	 * @return Best current path or NULL if none
  	 */
  	SharedPtr<Path> getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId = -1);
@@ -1812,7 +1807,7 @@ index 777a1e9..df98665 100644
  
  	/**
  	 * Send VERB_RENDEZVOUS to this and another peer via the best common IP scope and path
-@@ -540,7 +613,15 @@ public:
+@@ -540,7 +611,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -1828,7 +1823,7 @@ index 777a1e9..df98665 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
  			ptr += 2;
-@@ -620,6 +701,49 @@ public:
+@@ -620,6 +699,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -1878,7 +1873,7 @@ index 777a1e9..df98665 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +758,10 @@ private:
+@@ -634,6 +756,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -1912,7 +1907,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..67f5e92 100644
+index 7664f7a..5eeeaea 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1968,26 +1963,7 @@ index 7664f7a..67f5e92 100644
  
  						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
  						// It wouldn't hurt anything, just redundant and unnecessary.
-@@ -130,6 +148,18 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
- 							relayTo = RR->topology->getUpstreamPeer();
- 							if (relayTo) {
- 								relayTo->sendDirect(tPtr,fragment.data(),fragment.size(),now,true);
-+							} else {
-+								// relay tcp
-+								
-+								relayTo = RR->topology->getPeer(tPtr,destination);
-+								if ((!relayTo)||(!relayTo->sendDirectByTCP(tPtr,fragment.data(),fragment.size(),now,false))) {
-+									// Don't know peer or no direct path -- so relay via someone upstream
-+									relayTo = RR->topology->getUpstreamPeer();
-+									if (relayTo) {
-+										relayTo->sendDirectByTCP(tPtr,fragment.data(),fragment.size(),now,true);
-+									}
-+								}
-+								
- 							}
- 						}
- 					}
-@@ -197,8 +227,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -197,8 +215,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
  					Packet packet(data,len);
@@ -2014,36 +1990,7 @@ index 7664f7a..67f5e92 100644
  						packet.incrementHops();
  						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
  						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
-@@ -217,6 +264,28 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
- 										relayTo->introduce(tPtr,now,sourcePeer);
- 									}
- 								}
-+							} else {
-+								// relay tcp
-+								
-+								relayTo = RR->topology->getPeer(tPtr,destination);
-+								if ((relayTo)&&(relayTo->sendDirectByTCP(tPtr,packet.data(),packet.size(),now,false))) {
-+									if ((source != RR->identity.address())&&(_shouldUnite(now,source,destination))) {
-+										const SharedPtr<Peer> sourcePeer(RR->topology->getPeer(tPtr,source));
-+										if (sourcePeer) {
-+											relayTo->introduce(tPtr,now,sourcePeer);
-+										}
-+									}
-+								} else {
-+									relayTo = RR->topology->getUpstreamPeer();
-+									if ((relayTo)&&(relayTo->address() != source)) {
-+										if (relayTo->sendDirectByTCP(tPtr,packet.data(),packet.size(),now,true)) {
-+											const SharedPtr<Peer> sourcePeer(RR->topology->getPeer(tPtr,source));
-+											if (sourcePeer) {
-+												relayTo->introduce(tPtr,now,sourcePeer);
-+											}
-+										}
-+									}
-+								}
- 							}
- 						}
- 					}
-@@ -968,7 +1037,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -968,7 +1003,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -2054,7 +2001,7 @@ index 7664f7a..67f5e92 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1221,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1187,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -2063,7 +2010,7 @@ index 7664f7a..67f5e92 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1231,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1197,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
