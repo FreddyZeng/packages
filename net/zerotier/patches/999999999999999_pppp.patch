@@ -46,7 +46,7 @@ index ba16278..44df8ab 100644
          LOGE("Exception calling ZT_Node_processWirePacket");
          free(localData);
 diff --git a/node/Bond.cpp b/node/Bond.cpp
-index 2a06179..e56a343 100644
+index 2a06179..8749a00 100644
 --- a/node/Bond.cpp
 +++ b/node/Bond.cpp
 @@ -855,7 +855,22 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
@@ -56,7 +56,7 @@ index 2a06179..e56a343 100644
 -		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size());
 +		bool result = RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +		
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP) {
++		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
 +			// 1. 【深拷贝】创建一个完全独立的副本
 +			Packet tcpOutp = outp;
 +
@@ -80,7 +80,7 @@ index 2a06179..e56a343 100644
 -			RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size());
 +			bool result = RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, outp.verb());
 +			
-+			if (!result && outp.verb() == Packet::VERB_FORCETCP) {
++			if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
 +				// 1. 【深拷贝】创建一个完全独立的副本
 +				Packet tcpOutp = outp;
 +
@@ -97,25 +97,27 @@ index 2a06179..e56a343 100644
  		}
  		else {
  			RR->sw->send(tPtr, outp, false);
-@@ -935,7 +965,22 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
+@@ -935,7 +965,24 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
  						Packet outp(_peer->address(), RR->identity.address(), Packet::VERB_ECHO);	// ECHO (this is our bond's heartbeat)
  						outp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
  						RR->node->expectReplyTo(outp.packetId());
 -						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size());
-+						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, outp.verb());
++						bool result = RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +						
-+//						// 1. 【深拷贝】创建一个完全独立的副本
-+//						Packet tcpOutp = outp;
-+//
-+//						// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+//						uint64_t tcpId;
-+//						Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+//						// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+//						tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+//						
-+//						tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
-+//						RR->node->expectReplyTo(tcpOutp.packetId());
-+//						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
++						if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
++							// 1. 【深拷贝】创建一个完全独立的副本
++							Packet tcpOutp = outp;
++
++							// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++							uint64_t tcpId;
++							Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++							// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++							tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++							
++							tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
++							RR->node->expectReplyTo(tcpOutp.packetId());
++							RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, Packet::VERB_FORCETCP);
++						}
 +						
 +						
  						_paths[i].p->_lastOut = now;
@@ -1015,7 +1017,7 @@ index 1f377c5..3c1ecde 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..9a22fd6 100644
+index f9d0548..b0d9d8d 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -1082,7 +1084,7 @@ index f9d0548..9a22fd6 100644
  	inline std::vector<InetAddress> directPaths() const
  	{
  		Mutex::Lock _l(_directPaths_m);
-@@ -289,6 +297,14 @@ public:
+@@ -289,6 +297,16 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -1093,11 +1095,13 @@ index f9d0548..9a22fd6 100644
 +	bool _enableAllowedPeerKeys;
 +    
 +    std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _planetPubKeyBinKeys;
++	
++	bool _forceTcpRelay;
 +
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
-@@ -334,6 +350,8 @@ public:
+@@ -334,6 +352,8 @@ public:
  	volatile int64_t _prngState[2];
  	bool _online;
  	bool _lowBandwidthMode;
@@ -1215,7 +1219,7 @@ index d6167ce..74e59e1 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..98a5a50 100644
+index f77b4e6..54aeea8 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1468,7 +1472,7 @@ index f77b4e6..98a5a50 100644
 +		
 +		// 发一份必定走tcp的包,建立tcp连接
 +		
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP) {
++		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
 +			
 +			// 1. 【深拷贝】创建一个完全独立的副本
 +			Packet tcpOutp = outp;
@@ -1498,7 +1502,7 @@ index f77b4e6..98a5a50 100644
 +		bool result = RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,outp.verb());
 +		
 +		
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP) {
++		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
 +			// 1. 【深拷贝】创建一个完全独立的副本
 +			Packet tcpOutp = outp;
 +
@@ -1968,7 +1972,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..2d15ca9 100644
+index 594ff02..9291329 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2204,7 +2208,7 @@ index 594ff02..2d15ca9 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2690,9 @@ public:
+@@ -2581,11 +2690,15 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2214,7 +2218,13 @@ index 594ff02..2d15ca9 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2769,8 @@ public:
+ 		_allowTcpFallbackRelay = (OSUtils::jsonBool(settings["allowTcpFallbackRelay"],true) && !_node->bondController()->inUse());
+ 		_forceTcpRelay = (_forceTcpRelayTmp && !_node->bondController()->inUse());
++		_node->_forceTcpRelay = _forceTcpRelay;
+ 		_enableWebServer = (OSUtils::jsonBool(settings["enableWebServer"],false));
+ 
+ #ifdef ZT_TCP_FALLBACK_RELAY
+@@ -2657,6 +2770,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2223,7 +2233,7 @@ index 594ff02..2d15ca9 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3064,8 @@ public:
+@@ -2950,7 +3065,8 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2233,7 +2243,7 @@ index 594ff02..2d15ca9 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3092,17 @@ public:
+@@ -2977,10 +3093,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2253,7 +2263,7 @@ index 594ff02..2d15ca9 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3145,7 @@ public:
+@@ -3023,6 +3146,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2261,7 +2271,7 @@ index 594ff02..2d15ca9 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3184,7 @@ public:
+@@ -3061,7 +3185,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2270,7 +2280,7 @@ index 594ff02..2d15ca9 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3219,13 @@ public:
+@@ -3096,7 +3220,13 @@ public:
  								}
  
  								if (from) {
@@ -2284,7 +2294,7 @@ index 594ff02..2d15ca9 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3233,8 @@ public:
+@@ -3104,7 +3234,8 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2294,7 +2304,7 @@ index 594ff02..2d15ca9 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,8 +3742,47 @@ public:
+@@ -3612,8 +3743,47 @@ public:
  		return -1;
  	}
  
@@ -2343,7 +2353,7 @@ index 594ff02..2d15ca9 100644
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3792,65 @@ public:
+@@ -3623,74 +3793,65 @@ public:
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
@@ -2467,7 +2477,7 @@ index 594ff02..2d15ca9 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4069,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4070,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
