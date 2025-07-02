@@ -46,47 +46,71 @@ index ba16278..44df8ab 100644
          LOGE("Exception calling ZT_Node_processWirePacket");
          free(localData);
 diff --git a/node/Bond.cpp b/node/Bond.cpp
-index 2a06179..0989182 100644
+index 2a06179..8460d17 100644
 --- a/node/Bond.cpp
 +++ b/node/Bond.cpp
-@@ -855,7 +855,12 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
+@@ -855,7 +855,20 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
  	if (_paths[pathIdx].p->address()) {
  		Metrics::pkt_path_negotiation_request_out++;
  		outp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
 -		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size());
-+		bool result = RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, outp.verb());
++		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +		
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
-+		}
++//		// 1. 【深拷贝】创建一个完全独立的副本
++//		Packet tcpOutp = outp;
++//
++//		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//		uint64_t tcpId;
++//		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//		
++//		tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
++//		RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
 +		
  		_overheadBytes += outp.size();
  	}
  }
-@@ -896,7 +901,12 @@ void Bond::sendQOS_MEASUREMENT(void* tPtr, int pathIdx, int64_t localSocket, con
+@@ -896,7 +909,19 @@ void Bond::sendQOS_MEASUREMENT(void* tPtr, int pathIdx, int64_t localSocket, con
  		outp.append(qosData, len);
  		if (atAddress) {
  			outp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
 -			RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size());
-+			bool result = RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, outp.verb());
++			RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, outp.verb());
 +			
-+			if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+				RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
-+			}
-+			
++			// 1. 【深拷贝】创建一个完全独立的副本
++//			Packet tcpOutp = outp;
++//
++//			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//			uint64_t tcpId;
++//			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//			tcpOutp.setAt<uint64_t>(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//			
++//			tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
++//			RR->node->putPacket(tPtr, localSocket, atAddress, tcpOutp.data(), tcpOutp.size(), 0, true);
  		}
  		else {
  			RR->sw->send(tPtr, outp, false);
-@@ -935,7 +945,13 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
+@@ -935,7 +960,22 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
  						Packet outp(_peer->address(), RR->identity.address(), Packet::VERB_ECHO);	// ECHO (this is our bond's heartbeat)
  						outp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
  						RR->node->expectReplyTo(outp.packetId());
 -						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size());
-+						bool result = RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, outp.verb());
++						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +						
-+						if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+							RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
-+						}
++//						// 1. 【深拷贝】创建一个完全独立的副本
++//						Packet tcpOutp = outp;
++//
++//						// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//						uint64_t tcpId;
++//						Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//						// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//						tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//						
++//						tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
++//						RR->node->expectReplyTo(tcpOutp.packetId());
++//						RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, true);
 +						
 +						
  						_paths[i].p->_lastOut = now;
@@ -570,7 +594,7 @@ index b7580a8..1e3b534 100644
  	 * @return C25519 public key
  	 */
 diff --git a/node/IncomingPacket.cpp b/node/IncomingPacket.cpp
-index 2537c0f..bae0699 100644
+index 2537c0f..773836a 100644
 --- a/node/IncomingPacket.cpp
 +++ b/node/IncomingPacket.cpp
 @@ -65,6 +65,7 @@ bool IncomingPacket::tryDecode(const RuntimeEnvironment *RR,void *tPtr,int32_t f
@@ -824,22 +848,17 @@ index 2537c0f..bae0699 100644
  	}
  
  	peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_WHOIS,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
-@@ -746,7 +827,13 @@ bool IncomingPacket::_doRENDEZVOUS(const RuntimeEnvironment *RR,void *tPtr,const
+@@ -746,7 +827,8 @@ bool IncomingPacket::_doRENDEZVOUS(const RuntimeEnvironment *RR,void *tPtr,const
  				InetAddress atAddr(field(ZT_PROTO_VERB_RENDEZVOUS_IDX_ADDRESS,addrlen),addrlen,port);
  				if (RR->node->shouldUsePathForZeroTierTraffic(tPtr,with,_path->localSocket(),atAddr)) {
  					const uint64_t junk = RR->node->prng();
 -					RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
 +					// 关键快速连接
-+					bool result = RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2,Packet::VERB_RENDEZVOUS); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
-+					
-+					if (!result) {
-+						RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2,Packet::VERB_FORCETCP); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
-+					}
-+					
++					RR->node->putPacket(tPtr,_path->localSocket(),atAddr,&junk,4,2,Packet::VERB_RENDEZVOUS); // send low-TTL junk packet to 'open' local NAT(s) and stateful firewalls
  					rendezvousWith->attemptToContactAt(tPtr,_path->localSocket(),atAddr,RR->node->now(),false);
  				}
  			}
-@@ -955,7 +1042,7 @@ bool IncomingPacket::_doEXT_FRAME(const RuntimeEnvironment *RR,void *tPtr,const
+@@ -955,7 +1037,7 @@ bool IncomingPacket::_doEXT_FRAME(const RuntimeEnvironment *RR,void *tPtr,const
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -848,7 +867,7 @@ index 2537c0f..bae0699 100644
  		}
  
  		peer->received(tPtr,_path,hops(),packetId(),payloadLength(),Packet::VERB_EXT_FRAME,0,Packet::VERB_NOP,true,nwid,flowId);
-@@ -984,7 +1071,7 @@ bool IncomingPacket::_doECHO(const RuntimeEnvironment *RR,void *tPtr,const Share
+@@ -984,7 +1066,7 @@ bool IncomingPacket::_doECHO(const RuntimeEnvironment *RR,void *tPtr,const Share
  	outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  	peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  	Metrics::pkt_ok_out++;
@@ -857,7 +876,7 @@ index 2537c0f..bae0699 100644
  
  	peer->received(tPtr,_path,hops(),pid,payloadLength(),Packet::VERB_ECHO,0,Packet::VERB_NOP,false,0,ZT_QOS_NO_FLOW);
  
-@@ -1180,7 +1267,7 @@ bool IncomingPacket::_doNETWORK_CONFIG_REQUEST(const RuntimeEnvironment *RR,void
+@@ -1180,7 +1262,7 @@ bool IncomingPacket::_doNETWORK_CONFIG_REQUEST(const RuntimeEnvironment *RR,void
  		outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  		Metrics::pkt_error_out++;
  		Metrics::pkt_error_unsupported_op_out++;
@@ -866,7 +885,7 @@ index 2537c0f..bae0699 100644
  	}
  
  	peer->received(tPtr,_path,hopCount,requestPacketId,payloadLength(),Packet::VERB_NETWORK_CONFIG_REQUEST,0,Packet::VERB_NOP,false,nwid,ZT_QOS_NO_FLOW);
-@@ -1204,7 +1291,7 @@ bool IncomingPacket::_doNETWORK_CONFIG(const RuntimeEnvironment *RR,void *tPtr,c
+@@ -1204,7 +1286,7 @@ bool IncomingPacket::_doNETWORK_CONFIG(const RuntimeEnvironment *RR,void *tPtr,c
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -875,7 +894,7 @@ index 2537c0f..bae0699 100644
  		}
  	}
  
-@@ -1247,7 +1334,7 @@ bool IncomingPacket::_doMULTICAST_GATHER(const RuntimeEnvironment *RR,void *tPtr
+@@ -1247,7 +1329,7 @@ bool IncomingPacket::_doMULTICAST_GATHER(const RuntimeEnvironment *RR,void *tPtr
  			outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  			peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  			Metrics::pkt_ok_out++;
@@ -884,7 +903,7 @@ index 2537c0f..bae0699 100644
  		}
  	}
  
-@@ -1351,7 +1438,7 @@ bool IncomingPacket::_doMULTICAST_FRAME(const RuntimeEnvironment *RR,void *tPtr,
+@@ -1351,7 +1433,7 @@ bool IncomingPacket::_doMULTICAST_FRAME(const RuntimeEnvironment *RR,void *tPtr,
  				outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  				peer->recordOutgoingPacket(_path,outp.packetId(),outp.payloadLength(),outp.verb(),ZT_QOS_NO_FLOW,now);
  				Metrics::pkt_ok_out++;
@@ -893,7 +912,7 @@ index 2537c0f..bae0699 100644
  			}
  		}
  
-@@ -1493,7 +1580,7 @@ void IncomingPacket::_sendErrorNeedCredentials(const RuntimeEnvironment *RR,void
+@@ -1493,7 +1575,7 @@ void IncomingPacket::_sendErrorNeedCredentials(const RuntimeEnvironment *RR,void
  	outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  	Metrics::pkt_error_out++;
  	Metrics::pkt_error_need_membership_cert_out++;
@@ -903,28 +922,10 @@ index 2537c0f..bae0699 100644
  
  } // namespace ZeroTier
 diff --git a/node/Multicaster.cpp b/node/Multicaster.cpp
-index 3a77197..3f91b50 100644
+index 3a77197..519ba84 100644
 --- a/node/Multicaster.cpp
 +++ b/node/Multicaster.cpp
-@@ -180,10 +180,17 @@ void Multicaster::send(
- 					const SharedPtr<Peer> p(RR->topology->getPeerNoCache(multicastReplicators[i]));
- 					if ((p)&&(p->isAlive(now))) {
- 						const SharedPtr<Path> pp(p->getAppropriatePath(now,false));
-+						
-+						const SharedPtr<Path> ppByTCP(p->getAppropriatePathByTCP(now,false));
-+						
- 						if ((pp)&&(pp->latency() < bestMulticastReplicatorLatency)) {
- 							bestMulticastReplicatorLatency = pp->latency();
- 							bestMulticastReplicatorPath = pp;
- 							bestMulticastReplicator = p;
-+						} else if ((ppByTCP)&&(ppByTCP->latency() < bestMulticastReplicatorLatency)) {
-+							bestMulticastReplicatorLatency = ppByTCP->latency();
-+							bestMulticastReplicatorPath = ppByTCP;
-+							bestMulticastReplicator = p;
- 						}
- 					}
- 				}
-@@ -201,7 +208,7 @@ void Multicaster::send(
+@@ -201,7 +201,7 @@ void Multicaster::send(
  					}
  					outp.armor(bestMulticastReplicator->key(),true,bestMulticastReplicator->aesKeysIfSupported());
  					Metrics::pkt_multicast_frame_out++;
@@ -950,7 +951,7 @@ index 1643487..4299f8f 100644
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..639dfd7 100644
+index 1f377c5..3c1ecde 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
 @@ -211,10 +211,11 @@ ZT_ResultCode Node::processWirePacket(
@@ -976,22 +977,15 @@ index 1f377c5..639dfd7 100644
  
  			// Unless we don't any have paths to the roots, then we shouldn't wait a long time to contact them
  			bool hasPaths = p->paths(RR->node->now()).size() > 0;
-@@ -303,8 +304,14 @@ public:
+@@ -303,6 +304,7 @@ public:
  
  			if ((!contacted)&&(_bestCurrentUpstream)) {
  				const SharedPtr<Path> up(_bestCurrentUpstream->getAppropriatePath(_now,true));
-+				
-+				const SharedPtr<Path> upByTCP(_bestCurrentUpstream->getAppropriatePathByTCP(_now,true));
-+				
 +				// 向路径发送path
  				if (up) {
  					p->sendHELLO(_tPtr,up->localSocket(),up->address(),_now);
-+				} else if (upByTCP) {
-+					p->sendHELLO(_tPtr,upByTCP->localSocket(),upByTCP->address(),_now);
  				}
- 			}
- 
-@@ -402,6 +409,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+@@ -402,6 +404,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Ping active peers, upstreams, and others that we should always contact
  			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
  			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
@@ -1000,7 +994,7 @@ index 1f377c5..639dfd7 100644
  
  			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
  			{
-@@ -554,6 +563,7 @@ void Node::status(ZT_NodeStatus *status) const
+@@ -554,6 +558,7 @@ void Node::status(ZT_NodeStatus *status) const
  	status->online = _online ? 1 : 0;
  }
  
@@ -1008,46 +1002,7 @@ index 1f377c5..639dfd7 100644
  ZT_PeerList *Node::peers() const
  {
  	std::vector< std::pair< Address,SharedPtr<Peer> > > peers(RR->topology->allPeers());
-@@ -588,6 +598,11 @@ ZT_PeerList *Node::peers() const
- 
- 		std::vector< SharedPtr<Path> > paths(pi->second->paths(_now));
- 		SharedPtr<Path> bestp(pi->second->getAppropriatePath(_now,false));
-+		
-+		SharedPtr<Path> bestpByTCP(pi->second->getAppropriatePathByTCP(_now,false));
-+		
-+		bool didSetPreferred = false;
-+		
- 		p->pathCount = 0;
- 		for(std::vector< SharedPtr<Path> >::iterator path(paths.begin());path!=paths.end();++path) {
- 			if((*path)->valid()) {
-@@ -599,6 +614,10 @@ ZT_PeerList *Node::peers() const
- 				p->paths[p->pathCount].trustedPathId = RR->topology->getOutboundPathTrust((*path)->address());
- 				p->paths[p->pathCount].expired = 0;
- 				p->paths[p->pathCount].preferred = ((*path) == bestp) ? 1 : 0;
-+				if (p->paths[p->pathCount].preferred) {
-+					didSetPreferred = true;
-+				}
-+				
- 				p->paths[p->pathCount].scope = (*path)->ipScope();
- 				if (pi->second->bond()) {
- 					p->paths[p->pathCount].latencyMean = (*path)->latencyMean();
-@@ -617,6 +636,15 @@ ZT_PeerList *Node::peers() const
- 				++p->pathCount;
- 			}
- 		}
-+		if (didSetPreferred == false) {
-+			p->pathCount = 0;
-+			for(std::vector< SharedPtr<Path> >::iterator path(paths.begin());path!=paths.end();++path) {
-+				if((*path)->valid()) {
-+					p->paths[p->pathCount].preferred = ((*path) == bestpByTCP) ? 1 : 0;
-+				}
-+			}
-+		}
-+		
- 		if (pi->second->bond()) {
- 			p->isBonded = pi->second->bond();
- 			p->bondingPolicy = pi->second->bondingPolicy();
-@@ -943,10 +971,11 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -943,10 +948,11 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
@@ -1062,7 +1017,7 @@ index 1f377c5..639dfd7 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..b0d9d8d 100644
+index f9d0548..9a22fd6 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,7 @@
@@ -1129,7 +1084,7 @@ index f9d0548..b0d9d8d 100644
  	inline std::vector<InetAddress> directPaths() const
  	{
  		Mutex::Lock _l(_directPaths_m);
-@@ -289,6 +297,16 @@ public:
+@@ -289,6 +297,14 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -1140,13 +1095,11 @@ index f9d0548..b0d9d8d 100644
 +	bool _enableAllowedPeerKeys;
 +    
 +    std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _planetPubKeyBinKeys;
-+	
-+	bool _forceTcpRelay;
 +
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
-@@ -334,6 +352,8 @@ public:
+@@ -334,6 +350,8 @@ public:
  	volatile int64_t _prngState[2];
  	bool _online;
  	bool _lowBandwidthMode;
@@ -1181,10 +1134,10 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..8e686ec 100644
+index 00ea90f..f74c98c 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
-@@ -17,9 +17,10 @@
+@@ -17,9 +17,20 @@
  
  namespace ZeroTier {
  
@@ -1194,11 +1147,21 @@ index 00ea90f..8e686ec 100644
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
 +	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
 +	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
++		_lastOut = now;
++		return true;
++	}
++	return false;
++}
++
++bool Path::sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
++{
++	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
++	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
  		_lastOut = now;
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..5477d49 100644
+index d6167ce..74e59e1 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -99,7 +99,8 @@ public:
@@ -1221,16 +1184,17 @@ index d6167ce..5477d49 100644
  	{}
  
  	/**
-@@ -150,7 +152,7 @@ public:
+@@ -150,7 +152,8 @@ public:
  	 * @param now Current time
  	 * @return True if transport reported success
  	 */
 -	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now);
 +	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
++	bool sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
  
  	/**
  	 * Manually update last sent time
-@@ -371,6 +373,12 @@ public:
+@@ -371,6 +374,12 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1243,7 +1207,7 @@ index d6167ce..5477d49 100644
  
  private:
  
-@@ -401,6 +409,8 @@ private:
+@@ -401,6 +410,8 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
@@ -1253,7 +1217,7 @@ index d6167ce..5477d49 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..2aaa291 100644
+index f77b4e6..421d9f7 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1265,7 +1229,30 @@ index f77b4e6..2aaa291 100644
  #include "../version.h"
  #include "Constants.hpp"
  #include "Peer.hpp"
-@@ -60,6 +62,8 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -24,8 +26,22 @@
+ #include "Utils.hpp"
+ #include "Metrics.hpp"
+ 
++#include <vector>     // 需要包含此头文件
++#include <algorithm>  // 需要包含此头文件
++
+ namespace ZeroTier {
+ 
++// 步骤1: 创建一个临时结构体来存储路径和其对应的质量值
++struct PathWithQuality {
++	SharedPtr<Path> path;
++	long quality;
++
++	// 定义比较操作符，方便排序
++	bool operator<(const PathWithQuality& other) const {
++		return quality < other.quality;
++	}
++};
++
+ static unsigned char s_freeRandomByteCounter = 0;
+ 
+ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Identity &peerIdentity)
+@@ -60,6 +76,8 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	, _packet_errors{Metrics::peer_packet_errors.Add({{"node_id", OSUtils::nodeIDStr(peerIdentity.address().toInt())}})}
  #endif
  {
@@ -1274,7 +1261,7 @@ index f77b4e6..2aaa291 100644
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
-@@ -72,6 +76,81 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -72,6 +90,81 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
  }
  
@@ -1356,7 +1343,7 @@ index f77b4e6..2aaa291 100644
  void Peer::received(
  	void *tPtr,
  	const SharedPtr<Path> &path,
-@@ -99,6 +178,9 @@ void Peer::received(
+@@ -99,6 +192,9 @@ void Peer::received(
  		default:
  			break;
  	}
@@ -1366,7 +1353,7 @@ index f77b4e6..2aaa291 100644
  #ifndef ZT_NO_PEER_METRICS
  	_incoming_packet++;
  #endif
-@@ -167,6 +249,10 @@ void Peer::received(
+@@ -167,6 +263,10 @@ void Peer::received(
  				replacePath = (replacePath == ZT_MAX_PEER_NETWORK_PATHS) ? oldestPathIdx : replacePath;
  				if (replacePath != ZT_MAX_PEER_NETWORK_PATHS) {
  					RR->t->peerLearnedNewPath(tPtr, networkId, *this, path, packetId);
@@ -1377,7 +1364,7 @@ index f77b4e6..2aaa291 100644
  					_paths[replacePath].lr = now;
  					_paths[replacePath].p = path;
  					_paths[replacePath].priority = 1;
-@@ -203,11 +289,12 @@ void Peer::received(
+@@ -203,11 +303,12 @@ void Peer::received(
  	// If we have a trust relationship periodically push a message enumerating
  	// all known external addresses for ourselves. If we already have a path this
  	// is done less frequently.
@@ -1393,7 +1380,7 @@ index f77b4e6..2aaa291 100644
  			_lastDirectPathPushSent = now;
  			std::vector<InetAddress> pathsToPush(RR->node->directPaths());
  			std::vector<InetAddress> ma = RR->sa->whoami();
-@@ -247,7 +334,8 @@ void Peer::received(
+@@ -247,7 +348,8 @@ void Peer::received(
  						outp->compress();
  						outp->armor(_key,true,aesKeysIfSupported());
  						Metrics::pkt_push_direct_paths_out++;
@@ -1403,7 +1390,7 @@ index f77b4e6..2aaa291 100644
  					}
  					delete outp;
  				}
-@@ -256,6 +344,7 @@ void Peer::received(
+@@ -256,6 +358,7 @@ void Peer::received(
  	}
  }
  
@@ -1411,11 +1398,10 @@ index f77b4e6..2aaa291 100644
  SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId)
  {
  	Mutex::Lock _l(_paths_m);
-@@ -263,7 +352,44 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -263,6 +366,122 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	if(_bond && _bond->isReady()) {
  		return _bond->getAppropriatePath(now, flowId);
  	}
--	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
 +	
 +	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
 +	/**
@@ -1444,6 +1430,60 @@ index f77b4e6..2aaa291 100644
 +	return SharedPtr<Path>();
 +}
 +
++/**
++ * @brief 获取所有适用的UDP网络路径，并按质量从优到劣排序。
++ *
++ * @param now 当前时间戳
++ * @param includeExpired 是否包含已过期的路径
++ * @param flowId 流ID (主要用于bond)
++ * @return 包含所有适用路径且已排序的向量(vector)
++ */
++std::vector<SharedPtr<Path>> Peer::getAppropriatePathList(int64_t now, bool includeExpired, int32_t flowId)
++{
++	Mutex::Lock _l(_paths_m);
++	Mutex::Lock _lb(_bond_m);
++
++	// 如果存在一个就绪的bond，它将负责路径选择，我们直接返回其结果。
++	if(_bond && _bond->isReady()) {
++		std::vector<SharedPtr<Path>> appropriatePaths;
++		SharedPtr<Path> bondPath = _bond->getAppropriatePath(now, flowId);
++		if (bondPath) {
++			appropriatePaths.push_back(bondPath);
++		}
++		return appropriatePaths;
++	}
++
++	std::vector<PathWithQuality> tempPaths;
++
++	// 步骤2: 遍历所有路径，计算质量，并存入临时向量
++	for(unsigned int i = 0; i < ZT_MAX_PEER_NETWORK_PATHS; ++i) {
++		if (_paths[i].p) {
++			// 路径必须是活跃的(或允许包含过期的)，并且不能是TCP路径
++			if ((includeExpired || ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) && !_paths[i].p->isTCPPacket()) {
++				// 使用与原始代码完全相同的逻辑计算质量
++				const long q = _paths[i].p->quality(now) / _paths[i].priority;
++				// 将路径指针和计算出的质量一起添加到临时列表中
++				tempPaths.push_back({_paths[i].p, q});
++			}
++		} else {
++			// 假设_paths是一个连续的列表，遇到空指针就可以停止
++			break;
++		}
++	}
++
++	// 步骤3: 对包含质量的临时列表进行排序
++	std::sort(tempPaths.begin(), tempPaths.end());
++
++	// 步骤4: 从排好序的临时列表中提取路径指针到最终结果向量
++	std::vector<SharedPtr<Path>> appropriatePaths;
++	appropriatePaths.reserve(tempPaths.size()); // 预分配内存以提高效率
++	for (const auto& pq : tempPaths) {
++		appropriatePaths.push_back(pq.path);
++	}
++	
++	return appropriatePaths;
++}
++
 +// flowId 获取path
 +SharedPtr<Path> Peer::getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId)
 +{
@@ -1453,45 +1493,44 @@ index f77b4e6..2aaa291 100644
 +		return _bond->getAppropriatePath(now, flowId);
 +	}
 +	
-+	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
++//	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
++//	/**
++//	 * Send traffic across the highest quality path only. This algorithm will still
++//	 * use the old path quality metric from protocol version 9.
++//	 */
++//	long bestPathQuality = 2147483647;
++//	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
++//		if (_paths[i].p) {
++//			if ((!_paths[i].p->isTCPPacket()) && ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
++//				const long q = _paths[i].p->quality(now) / _paths[i].priority;
++//				if (q <= bestPathQuality && !_paths[i].p->isTCPPacket()) {
++//					bestPathQuality = q;
++//					bestUDPPath = i;
++//				}
++//			}
++//		} else {
++//			break;
++//		}
++//	}
++//	
++//	if (bestUDPPath != ZT_MAX_PEER_NETWORK_PATHS) {
++//		// 如果存在活跃的udp path, 就返回udp path,不返回tcp
++//		return _paths[bestUDPPath].p;
++//	}
++	
+ 	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
  	/**
  	 * Send traffic across the highest quality path only. This algorithm will still
- 	 * use the old path quality metric from protocol version 9.
-@@ -271,7 +397,32 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -271,7 +490,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	long bestPathQuality = 2147483647;
  	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
  		if (_paths[i].p) {
 -			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+			if ((!_paths[i].p->isTCPPacket()) && ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+				const long q = _paths[i].p->quality(now) / _paths[i].priority;
-+				if (q <= bestPathQuality && !_paths[i].p->isTCPPacket()) {
-+					bestPathQuality = q;
-+					bestUDPPath = i;
-+				}
-+			}
-+		} else {
-+			break;
-+		}
-+	}
-+	
-+	if (bestUDPPath != ZT_MAX_PEER_NETWORK_PATHS) {
-+		// 如果存在活跃的udp path, 就返回udp path,不返回tcp
-+		return _paths[bestUDPPath].p;
-+	}
-+	
-+	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
-+	/**
-+	 * Send traffic across the highest quality path only. This algorithm will still
-+	 * use the old path quality metric from protocol version 9.
-+	 */
-+	bestPathQuality = 2147483647;
-+	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
-+		if (_paths[i].p) {
 +			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
  				const long q = _paths[i].p->quality(now) / _paths[i].priority;
  				if (q <= bestPathQuality) {
  					bestPathQuality = q;
-@@ -282,6 +433,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -282,12 +501,89 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  			break;
  		}
  	}
@@ -1499,7 +1538,89 @@ index f77b4e6..2aaa291 100644
  	if (bestPath != ZT_MAX_PEER_NETWORK_PATHS) {
  		return _paths[bestPath].p;
  	}
-@@ -393,7 +545,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+ 	return SharedPtr<Path>();
+ }
+ 
++/**
++ * @brief 获取所有适用的路径，优先返回UDP路径列表，若无则返回TCP路径列表。
++ *
++ * @param now 当前时间戳
++ * @param includeExpired 是否包含已过期的路径
++ * @param flowId 流ID (主要用于bond)
++ * @return 包含所有适用路径且已排序的向量(vector)。优先返回UDP路径。
++ */
++std::vector<SharedPtr<Path>> Peer::getAppropriatePathListByTCP(int64_t now, bool includeExpired, int32_t flowId)
++{
++	Mutex::Lock _l(_paths_m);
++	Mutex::Lock _lb(_bond_m);
++
++	// 1. 如果存在一个就绪的bond，它将负责路径选择，我们直接返回其结果。
++	if(_bond && _bond->isReady()) {
++		std::vector<SharedPtr<Path>> appropriatePaths;
++		SharedPtr<Path> bondPath = _bond->getAppropriatePath(now, flowId);
++		if (bondPath) {
++			appropriatePaths.push_back(bondPath);
++		}
++		return appropriatePaths;
++	}
++
++	std::vector<PathWithQuality> udpPaths;
++	std::vector<PathWithQuality> tcpPaths;
++
++	// 2. 遍历所有路径一次，将它们分类为UDP和TCP两个列表
++	for(unsigned int i = 0; i < ZT_MAX_PEER_NETWORK_PATHS; ++i) {
++		if (_paths[i].p) {
++			// 检查路径是否活跃，或者是否要包含过期路径
++			if (includeExpired || ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
++				const long q = _paths[i].p->quality(now) / _paths[i].priority;
++				
++				if (_paths[i].p->isTCPPacket()) {
++					tcpPaths.push_back({_paths[i].p, q});
++				} else {
++					udpPaths.push_back({_paths[i].p, q});
++				}
++			}
++		} else {
++			break;
++		}
++	}
++
++//	// 3. 优先返回UDP路径
++//	if (!udpPaths.empty()) {
++//		// 对UDP路径按质量排序
++//		std::sort(udpPaths.begin(), udpPaths.end());
++//		
++//		// 准备最终返回的列表
++//		std::vector<SharedPtr<Path>> resultPaths;
++//		resultPaths.reserve(udpPaths.size());
++//		for (const auto& pq : udpPaths) {
++//			resultPaths.push_back(pq.path);
++//		}
++//		return resultPaths;
++//	}
++
++	// 4. 如果没有可用的UDP路径，则回退到TCP路径
++	if (!tcpPaths.empty()) {
++		// 对TCP路径按质量排序
++		std::sort(tcpPaths.begin(), tcpPaths.end());
++
++		// 准备最终返回的列表
++		std::vector<SharedPtr<Path>> resultPaths;
++		resultPaths.reserve(tcpPaths.size());
++		for (const auto& pq : tcpPaths) {
++			resultPaths.push_back(pq.path);
++		}
++		return resultPaths;
++	}
++	
++	// 5. 如果没有任何可用路径，返回空列表
++	return std::vector<SharedPtr<Path>>();
++}
++
+ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &other) const
+ {
+ 	unsigned int myBestV4ByScope[ZT_INETADDRESS_MAX_SCOPE+1];
+@@ -393,7 +689,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(_key,true,aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1508,7 +1629,7 @@ index f77b4e6..2aaa291 100644
  			} else {
  				Packet outp(other->_id.address(),RR->identity.address(),Packet::VERB_RENDEZVOUS);
  				outp.append((uint8_t)0);
-@@ -408,7 +560,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -408,7 +704,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(other->_key,true,other->aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1517,44 +1638,66 @@ index f77b4e6..2aaa291 100644
  			}
  			++alt;
  		}
-@@ -449,11 +601,18 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +745,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
--
 +	
 +	
++//	// 1. 【深拷贝】创建一个完全独立的副本
++//	Packet tcpOutp = outp;
++//
++//	// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//	uint64_t tcpId;
++//	Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//	// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//	tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//
++//	// 3. 【重新加密/签名】对新包应用和原包完全一样的加密和签名流程
++//	// 注意：这里的参数要和原始代码一致
++//	tcpOutp.cryptField(_key, startCryptedPortionAt, tcpOutp.size() - startCryptedPortionAt);
++
+ 
  	if (atAddress) {
  		outp.armor(_key,false,nullptr); // false == don't encrypt full payload, but add MAC
  		RR->node->expectReplyTo(outp.packetId());
 -		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size());
-+		bool result = RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size(),0,outp.verb());
++		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size(),0,outp.verb());
 +		
 +		
-+		// 发一份必定走tcp的包,建立tcp连接
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size(),0,Packet::VERB_FORCETCP);
-+		}
++//		// 发一份必定走tcp的包,建立tcp连接
++//		tcpOutp.armor(_key,false,nullptr); // false == don't encrypt full payload, but add MAC
++//		RR->node->expectReplyTo(tcpOutp.packetId());
++//		RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +626,13 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +784,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
 -		RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size());
-+		bool result = RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,outp.verb());
++		RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,outp.verb());
 +		
-+		
-+		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,Packet::VERB_FORCETCP);
-+		}
++//		// 1. 【深拷贝】创建一个完全独立的副本
++//		Packet tcpOutp = outp;
++//
++//		// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
++//		uint64_t tcpId;
++//		Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
++//		// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
++//		tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
++//		
++//		tcpOutp.armor(_key,true,aesKeysIfSupported());
++//		
++//		RR->node->expectReplyTo(tcpOutp.packetId());
++//		RR->node->putPacket(tPtr,localSocket,atAddress,tcpOutp.data(),tcpOutp.size(),0,true);
 +		
  	} else {
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..62cfe09 100644
+index 777a1e9..df98665 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1576,14 +1719,42 @@ index 777a1e9..62cfe09 100644
  	/**
  	 * Check whether we have an active path to this peer via the given address
  	 *
-@@ -143,7 +146,28 @@ public:
+@@ -139,12 +142,77 @@ public:
+ 	 * @param force If true, send even if path is not alive
+ 	 * @return True if we actually sent something
+ 	 */
++//	inline bool sendDirect(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
++//	{
++//		SharedPtr<Path> bp(getAppropriatePath(now,force));
++//		if (bp) {
++//			// 关键快速连接
++//			return bp->send(RR,tPtr,data,len,now,Packet::VERB_NOTCP);
++//		}
++//		return false;
++//	}
+ 	inline bool sendDirect(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
  	{
- 		SharedPtr<Path> bp(getAppropriatePath(now,force));
- 		if (bp) {
+-		SharedPtr<Path> bp(getAppropriatePath(now,force));
+-		if (bp) {
 -			return bp->send(RR,tPtr,data,len,now);
-+			// 关键快速连接
-+			return bp->send(RR,tPtr,data,len,now,Packet::VERB_NOTCP);
++		// 1. Get the list of all appropriate paths, sorted by quality.
++		// Note: We are passing a default flowId of 0 since the original function didn't use it.
++		std::vector<SharedPtr<Path>> paths = getAppropriatePathList(now, force, 0);
++
++		// 2. Iterate through each path in the list.
++		for (const auto& path : paths) {
++			if (path) {
++				// 3. Attempt to send data on the current path.
++				// The send parameters (RR, VERB_NOTCP, etc.) are preserved from the original.
++				if (path->send(RR,tPtr,data,len,now,Packet::VERB_NOTCP)) {
++					// 4. If send() returns true, it was successful.
++					// Stop the loop immediately and return true from sendDirect.
++					return true;
++				}
++			}
 +		}
++
++		// 5. If the loop completes, it means all paths in the list failed to send (or the list was empty).
 +		return false;
 +	}
 +	
@@ -1597,37 +1768,51 @@ index 777a1e9..62cfe09 100644
 +	 * @param force If true, send even if path is not alive
 +	 * @return True if we actually sent something
 +	 */
++//	inline bool sendDirectByTCP(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
++//	{
++//		SharedPtr<Path> bp(getAppropriatePathByTCP(now,force));
++//		if (bp) {
++//			// 关键快速连接
++//			return bp->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP);
++//		}
++//		return false;
++//	}
 +	inline bool sendDirectByTCP(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
 +	{
-+		SharedPtr<Path> bp(getAppropriatePathByTCP(now,force));
-+		if (bp) {
-+			// 关键快速连接
-+			return bp->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP);
++		// 1. Get the list of all appropriate paths, sorted by quality.
++		// Note: We are passing a default flowId of 0 since the original function didn't use it.
++		std::vector<SharedPtr<Path>> paths = getAppropriatePathListByTCP(now, force, 0);
++
++		// 2. Iterate through each path in the list.
++		for (const auto& path : paths) {
++			if (path) {
++				// 3. Attempt to send data on the current path.
++				// The send parameters (RR, VERB_NOTCP, etc.) are preserved from the original.
++				if (path->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP)) {
++					// 4. If send() returns true, it was successful.
++					// Stop the loop immediately and return true from sendDirect.
++					return true;
++				}
++			}
  		}
++
++		// 5. If the loop completes, it means all paths in the list failed to send (or the list was empty).
  		return false;
  	}
-@@ -191,6 +215,8 @@ public:
+ 
+@@ -191,6 +259,11 @@ public:
  	 * @return Best current path or NULL if none
  	 */
  	SharedPtr<Path> getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId = -1);
 +	
 +	SharedPtr<Path> getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId = -1);
++	
++	std::vector<SharedPtr<Path>> getAppropriatePathList(int64_t now, bool includeExpired, int32_t flowId);
++	std::vector<SharedPtr<Path>> getAppropriatePathListByTCP(int64_t now, bool includeExpired, int32_t flowId);
  
  	/**
  	 * Send VERB_RENDEZVOUS to this and another peer via the best common IP scope and path
-@@ -319,8 +345,11 @@ public:
- 			return (int)_lastComputedAggregateMeanLatency;
- 		} else {
- 			SharedPtr<Path> bp(getAppropriatePath(now,false));
-+			SharedPtr<Path> bpByTCP(getAppropriatePathByTCP(now,false));
- 			if (bp) {
- 				return (unsigned int)bp->latency();
-+			} else if (bpByTCP) {
-+				return (unsigned int)bp->latency();
- 			}
- 			return 0xffff;
- 		}
-@@ -540,7 +569,15 @@ public:
+@@ -540,7 +613,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -1643,7 +1828,7 @@ index 777a1e9..62cfe09 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
  			ptr += 2;
-@@ -620,6 +657,49 @@ public:
+@@ -620,6 +701,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -1693,7 +1878,7 @@ index 777a1e9..62cfe09 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +714,10 @@ private:
+@@ -634,6 +758,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -1727,7 +1912,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..be19c5b 100644
+index 7664f7a..67f5e92 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1869,26 +2054,7 @@ index 7664f7a..be19c5b 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1117,6 +1188,18 @@ bool Switch::_trySend(void *tPtr,Packet &packet,bool encrypt,int32_t flowId)
- 					}
- 				}
- 			}
-+			if (!viaPath) {
-+				viaPath = peer->getAppropriatePathByTCP(now,false,flowId);
-+				if (!viaPath) {
-+					peer->tryMemorizedPath(tPtr,now); // periodically attempt memorized or statically defined paths, if any are known
-+					const SharedPtr<Peer> relay(RR->topology->getUpstreamPeer());
-+					if ( (!relay) || (!(viaPath = relay->getAppropriatePathByTCP(now,false,flowId))) ) {
-+						if (!(viaPath = peer->getAppropriatePathByTCP(now,true,flowId))) {
-+							return false;
-+						}
-+					}
-+				}
-+			}
- 			if (viaPath) {
- 				uint16_t userSpecifiedMtu = viaPath->mtu();
- 				_sendViaSpecificPath(tPtr,peer,viaPath,userSpecifiedMtu,now,packet,encrypt,flowId);
-@@ -1150,7 +1233,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1221,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1897,7 +2063,7 @@ index 7664f7a..be19c5b 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1243,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1231,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
@@ -1993,23 +2159,6 @@ index fc272ce..91fb136 100644
  				}
  			}
  		}
-diff --git a/node/Topology.hpp b/node/Topology.hpp
-index 53c2b6d..91f7a4c 100644
---- a/node/Topology.hpp
-+++ b/node/Topology.hpp
-@@ -293,8 +293,12 @@ public:
- 		SharedPtr<Peer> *p = (SharedPtr<Peer> *)0;
- 		while (i.next(a,p)) {
- 			const SharedPtr<Path> pp((*p)->getAppropriatePath(now,false));
-+			const SharedPtr<Path> ppByTCP((*p)->getAppropriatePathByTCP(now,false));
-+
- 			if (pp) {
- 				++cnt;
-+			} else if (ppByTCP) {
-+				++cnt;
- 			}
- 		}
- 		return cnt;
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
 index 23e6393..d03879e 100644
 --- a/osdep/Binder.hpp
@@ -2052,7 +2201,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..9291329 100644
+index 594ff02..2d15ca9 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2288,7 +2437,7 @@ index 594ff02..9291329 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,11 +2690,15 @@ public:
+@@ -2581,6 +2690,9 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2298,13 +2447,7 @@ index 594ff02..9291329 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
- 		_allowTcpFallbackRelay = (OSUtils::jsonBool(settings["allowTcpFallbackRelay"],true) && !_node->bondController()->inUse());
- 		_forceTcpRelay = (_forceTcpRelayTmp && !_node->bondController()->inUse());
-+		_node->_forceTcpRelay = _forceTcpRelay;
- 		_enableWebServer = (OSUtils::jsonBool(settings["enableWebServer"],false));
- 
- #ifdef ZT_TCP_FALLBACK_RELAY
-@@ -2657,6 +2770,8 @@ public:
+@@ -2657,6 +2769,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2313,7 +2456,7 @@ index 594ff02..9291329 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3065,8 @@ public:
+@@ -2950,7 +3064,8 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2323,7 +2466,7 @@ index 594ff02..9291329 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3093,17 @@ public:
+@@ -2977,10 +3092,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2343,7 +2486,7 @@ index 594ff02..9291329 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3146,7 @@ public:
+@@ -3023,6 +3145,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2351,7 +2494,7 @@ index 594ff02..9291329 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3185,7 @@ public:
+@@ -3061,7 +3184,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2360,7 +2503,7 @@ index 594ff02..9291329 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3220,13 @@ public:
+@@ -3096,7 +3219,13 @@ public:
  								}
  
  								if (from) {
@@ -2374,7 +2517,7 @@ index 594ff02..9291329 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3234,8 @@ public:
+@@ -3104,7 +3233,8 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2384,7 +2527,7 @@ index 594ff02..9291329 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,8 +3743,47 @@ public:
+@@ -3612,8 +3742,47 @@ public:
  		return -1;
  	}
  
@@ -2433,7 +2576,7 @@ index 594ff02..9291329 100644
  #ifdef ZT_TCP_FALLBACK_RELAY
  		if(_allowTcpFallbackRelay) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3793,65 @@ public:
+@@ -3623,74 +3792,65 @@ public:
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
  					const int64_t now = OSUtils::now();
@@ -2557,7 +2700,7 @@ index 594ff02..9291329 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4070,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4069,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
