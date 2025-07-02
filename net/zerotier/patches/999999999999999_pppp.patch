@@ -46,10 +46,10 @@ index ba16278..44df8ab 100644
          LOGE("Exception calling ZT_Node_processWirePacket");
          free(localData);
 diff --git a/node/Bond.cpp b/node/Bond.cpp
-index 2a06179..8749a00 100644
+index 2a06179..0989182 100644
 --- a/node/Bond.cpp
 +++ b/node/Bond.cpp
-@@ -855,7 +855,22 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
+@@ -855,7 +855,12 @@ void Bond::sendPATH_NEGOTIATION_REQUEST(void* tPtr, int pathIdx)
  	if (_paths[pathIdx].p->address()) {
  		Metrics::pkt_path_negotiation_request_out++;
  		outp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
@@ -57,23 +57,13 @@ index 2a06179..8749a00 100644
 +		bool result = RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +		
 +		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			// 1. 【深拷贝】创建一个完全独立的副本
-+			Packet tcpOutp = outp;
-+
-+			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+			uint64_t tcpId;
-+			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+			tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+			
-+			tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
-+			RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), tcpOutp.data(), tcpOutp.size(), 0, Packet::VERB_FORCETCP);
++			RR->node->putPacket(tPtr, _paths[pathIdx].p->localSocket(), _paths[pathIdx].p->address(), outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
 +		}
 +		
  		_overheadBytes += outp.size();
  	}
  }
-@@ -896,7 +911,22 @@ void Bond::sendQOS_MEASUREMENT(void* tPtr, int pathIdx, int64_t localSocket, con
+@@ -896,7 +901,12 @@ void Bond::sendQOS_MEASUREMENT(void* tPtr, int pathIdx, int64_t localSocket, con
  		outp.append(qosData, len);
  		if (atAddress) {
  			outp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
@@ -81,23 +71,13 @@ index 2a06179..8749a00 100644
 +			bool result = RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, outp.verb());
 +			
 +			if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+				// 1. 【深拷贝】创建一个完全独立的副本
-+				Packet tcpOutp = outp;
-+
-+				// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+				uint64_t tcpId;
-+				Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+				// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+				tcpOutp.setAt<uint64_t>(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+				
-+				tcpOutp.armor(_peer->key(), false, _peer->aesKeysIfSupported());
-+				RR->node->putPacket(tPtr, localSocket, atAddress, tcpOutp.data(), tcpOutp.size(), 0, Packet::VERB_FORCETCP);
++				RR->node->putPacket(tPtr, localSocket, atAddress, outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
 +			}
 +			
  		}
  		else {
  			RR->sw->send(tPtr, outp, false);
-@@ -935,7 +965,24 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
+@@ -935,7 +945,13 @@ void Bond::processBackgroundBondTasks(void* tPtr, int64_t now)
  						Packet outp(_peer->address(), RR->identity.address(), Packet::VERB_ECHO);	// ECHO (this is our bond's heartbeat)
  						outp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
  						RR->node->expectReplyTo(outp.packetId());
@@ -105,18 +85,7 @@ index 2a06179..8749a00 100644
 +						bool result = RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, outp.verb());
 +						
 +						if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+							// 1. 【深拷贝】创建一个完全独立的副本
-+							Packet tcpOutp = outp;
-+
-+							// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+							uint64_t tcpId;
-+							Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+							// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+							tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+							
-+							tcpOutp.armor(_peer->key(), true, _peer->aesKeysIfSupported());
-+							RR->node->expectReplyTo(tcpOutp.packetId());
-+							RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), tcpOutp.data(), tcpOutp.size(), 0, Packet::VERB_FORCETCP);
++							RR->node->putPacket(tPtr, _paths[i].p->localSocket(), _paths[i].p->address(), outp.data(), outp.size(), 0, Packet::VERB_FORCETCP);
 +						}
 +						
 +						
@@ -1219,7 +1188,7 @@ index d6167ce..74e59e1 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..54aeea8 100644
+index f77b4e6..55a2f82 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1456,7 +1425,7 @@ index f77b4e6..54aeea8 100644
  			}
  			++alt;
  		}
-@@ -449,11 +576,35 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +576,18 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
@@ -1471,30 +1440,13 @@ index f77b4e6..54aeea8 100644
 +		
 +		
 +		// 发一份必定走tcp的包,建立tcp连接
-+		
 +		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			
-+			// 1. 【深拷贝】创建一个完全独立的副本
-+			Packet tcpOutp = outp;
-+
-+			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+			uint64_t tcpId;
-+			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+			tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+
-+			// 3. 【重新加密/签名】对新包应用和原包完全一样的加密和签名流程
-+			// 注意：这里的参数要和原始代码一致
-+			tcpOutp.cryptField(_key, startCryptedPortionAt, tcpOutp.size() - startCryptedPortionAt);
-+			
-+			tcpOutp.armor(_key,false,nullptr); // false == don't encrypt full payload, but add MAC
-+			RR->node->expectReplyTo(tcpOutp.packetId());
-+			RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,tcpOutp.data(),tcpOutp.size(),0,Packet::VERB_FORCETCP);
++			RR->node->putPacket(tPtr,RR->node->lowBandwidthModeEnabled() ? localSocket : -1,atAddress,outp.data(),outp.size(),0,Packet::VERB_FORCETCP);
 +		}
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +618,25 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +601,13 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
@@ -1503,19 +1455,7 @@ index f77b4e6..54aeea8 100644
 +		
 +		
 +		if (!result && outp.verb() != Packet::VERB_FORCETCP && !RR->node->_forceTcpRelay) {
-+			// 1. 【深拷贝】创建一个完全独立的副本
-+			Packet tcpOutp = outp;
-+
-+			// 2. 【修改】为新包生成并设置一个全新的、唯一的Packet ID
-+			uint64_t tcpId;
-+			Utils::getSecureRandom(&tcpId, sizeof(tcpId)); // 使用我们之前讨论过的安全随机函数
-+			// ZT_PACKET_FRAGMENT_IDX_PACKET_ID 的值是 0，代表数据包最开始的8个字节
-+			tcpOutp.setAt(ZT_PACKET_FRAGMENT_IDX_PACKET_ID, tcpId);
-+			
-+			tcpOutp.armor(_key,true,aesKeysIfSupported());
-+			
-+			RR->node->expectReplyTo(tcpOutp.packetId());
-+			RR->node->putPacket(tPtr,localSocket,atAddress,tcpOutp.data(),tcpOutp.size(),0,Packet::VERB_FORCETCP);
++			RR->node->putPacket(tPtr,localSocket,atAddress,outp.data(),outp.size(),0,Packet::VERB_FORCETCP);
 +		}
 +		
  	} else {
