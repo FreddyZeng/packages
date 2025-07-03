@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..550bc3d 100644
+index 95f093b..08f0b8f 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,7 +291,7 @@
@@ -261,7 +261,7 @@ index 95f093b..550bc3d 100644
   * to attempt NAT-t and gives each the other's corresponding IP:port pair.
   */
 -#define ZT_MIN_UNITE_INTERVAL 30000
-+#define ZT_MIN_UNITE_INTERVAL 7000
++#define ZT_MIN_UNITE_INTERVAL 3000
  
  /**
   * How often should peers try memorized or statically defined paths?
@@ -1791,7 +1791,7 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
-index 23e6393..8f6e83d 100644
+index 23e6393..d03879e 100644
 --- a/osdep/Binder.hpp
 +++ b/osdep/Binder.hpp
 @@ -63,7 +63,7 @@
@@ -1799,7 +1799,7 @@ index 23e6393..8f6e83d 100644
  
  // Period between refreshes of bindings
 -#define ZT_BINDER_REFRESH_PERIOD 30000
-+#define ZT_BINDER_REFRESH_PERIOD 15000
++#define ZT_BINDER_REFRESH_PERIOD 5000
  
  // Max number of bindings
  #define ZT_BINDER_MAX_BINDINGS 256
