@@ -226,7 +226,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..710be3a 100644
+index 95f093b..550bc3d 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,7 +291,7 @@
@@ -243,7 +243,7 @@ index 95f093b..710be3a 100644
   * How frequently to send heartbeats over in-use paths
   */
 -#define ZT_PATH_HEARTBEAT_PERIOD 14000
-+#define ZT_PATH_HEARTBEAT_PERIOD 7000
++#define ZT_PATH_HEARTBEAT_PERIOD 3000
  
  /**
   * Do not accept HELLOs over a given path more often than this
@@ -1047,7 +1047,7 @@ index d6167ce..5477d49 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..59ded98 100644
+index f77b4e6..8609cea 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1059,7 +1059,7 @@ index f77b4e6..59ded98 100644
  #include "../version.h"
  #include "Constants.hpp"
  #include "Peer.hpp"
-@@ -24,8 +26,22 @@
+@@ -24,8 +26,31 @@
  #include "Utils.hpp"
  #include "Metrics.hpp"
  
@@ -1075,6 +1075,15 @@ index f77b4e6..59ded98 100644
 +
 +	// 定义比较操作符，方便排序
 +	bool operator<(const PathWithQuality& other) const {
++		
++		if (path->isTCPPacket() != other->isTCPPacket()) {
++			if (!path->isTCPPacket()) {
++				return true;
++			} else {
++				return false;
++			}
++		}
++		
 +		return quality < other.quality;
 +	}
 +};
@@ -1082,7 +1091,7 @@ index f77b4e6..59ded98 100644
  static unsigned char s_freeRandomByteCounter = 0;
  
  Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Identity &peerIdentity)
-@@ -60,6 +76,8 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -60,6 +85,8 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	, _packet_errors{Metrics::peer_packet_errors.Add({{"node_id", OSUtils::nodeIDStr(peerIdentity.address().toInt())}})}
  #endif
  {
@@ -1091,7 +1100,7 @@ index f77b4e6..59ded98 100644
  	if (!myIdentity.agree(peerIdentity,_key)) {
  		throw ZT_EXCEPTION_INVALID_ARGUMENT;
  	}
-@@ -72,6 +90,81 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
+@@ -72,6 +99,81 @@ Peer::Peer(const RuntimeEnvironment *renv,const Identity &myIdentity,const Ident
  	Utils::burn(ktmp,ZT_SYMMETRIC_KEY_SIZE);
  }
  
@@ -1173,7 +1182,7 @@ index f77b4e6..59ded98 100644
  void Peer::received(
  	void *tPtr,
  	const SharedPtr<Path> &path,
-@@ -99,6 +192,9 @@ void Peer::received(
+@@ -99,6 +201,9 @@ void Peer::received(
  		default:
  			break;
  	}
@@ -1183,7 +1192,7 @@ index f77b4e6..59ded98 100644
  #ifndef ZT_NO_PEER_METRICS
  	_incoming_packet++;
  #endif
-@@ -167,6 +263,10 @@ void Peer::received(
+@@ -167,6 +272,10 @@ void Peer::received(
  				replacePath = (replacePath == ZT_MAX_PEER_NETWORK_PATHS) ? oldestPathIdx : replacePath;
  				if (replacePath != ZT_MAX_PEER_NETWORK_PATHS) {
  					RR->t->peerLearnedNewPath(tPtr, networkId, *this, path, packetId);
@@ -1194,7 +1203,7 @@ index f77b4e6..59ded98 100644
  					_paths[replacePath].lr = now;
  					_paths[replacePath].p = path;
  					_paths[replacePath].priority = 1;
-@@ -203,11 +303,12 @@ void Peer::received(
+@@ -203,11 +312,12 @@ void Peer::received(
  	// If we have a trust relationship periodically push a message enumerating
  	// all known external addresses for ourselves. If we already have a path this
  	// is done less frequently.
@@ -1210,7 +1219,7 @@ index f77b4e6..59ded98 100644
  			_lastDirectPathPushSent = now;
  			std::vector<InetAddress> pathsToPush(RR->node->directPaths());
  			std::vector<InetAddress> ma = RR->sa->whoami();
-@@ -247,7 +348,8 @@ void Peer::received(
+@@ -247,7 +357,8 @@ void Peer::received(
  						outp->compress();
  						outp->armor(_key,true,aesKeysIfSupported());
  						Metrics::pkt_push_direct_paths_out++;
@@ -1220,7 +1229,7 @@ index f77b4e6..59ded98 100644
  					}
  					delete outp;
  				}
-@@ -256,6 +358,7 @@ void Peer::received(
+@@ -256,6 +367,7 @@ void Peer::received(
  	}
  }
  
@@ -1228,22 +1237,34 @@ index f77b4e6..59ded98 100644
  SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId)
  {
  	Mutex::Lock _l(_paths_m);
-@@ -263,7 +366,8 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -263,31 +375,99 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	if(_bond && _bond->isReady()) {
  		return _bond->getAppropriatePath(now, flowId);
  	}
 -	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
 +	
 +	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
++	unsigned int bestTCPPath = ZT_MAX_PEER_NETWORK_PATHS;
  	/**
  	 * Send traffic across the highest quality path only. This algorithm will still
  	 * use the old path quality metric from protocol version 9.
-@@ -275,19 +379,75 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+ 	 */
+ 	long bestPathQuality = 2147483647;
++	long bestTCPPathQuality = 2147483647;
+ 	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
+ 		if (_paths[i].p) {
+ 			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
  				const long q = _paths[i].p->quality(now) / _paths[i].priority;
- 				if (q <= bestPathQuality) {
+-				if (q <= bestPathQuality) {
++				if (q <= bestPathQuality && !_paths[i].p->isTCPPacket()) {
  					bestPathQuality = q;
 -					bestPath = i;
 +					bestUDPPath = i;
++				}
++				
++				if (q <= bestTCPPathQuality && _paths[i].p->isTCPPacket())) {
++					bestTCPPathQuality = q;
++					bestTCPPath = i;
  				}
  			}
  		} else {
@@ -1255,6 +1276,10 @@ index f77b4e6..59ded98 100644
 +	
 +	if (bestUDPPath != ZT_MAX_PEER_NETWORK_PATHS) {
 +		return _paths[bestUDPPath].p;
++	}
++	
++	if (bestTCPPath != ZT_MAX_PEER_NETWORK_PATHS) {
++		return _paths[bestTCPPath].p;
  	}
 +	
  	return SharedPtr<Path>();
@@ -1317,7 +1342,7 @@ index f77b4e6..59ded98 100644
  void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &other) const
  {
  	unsigned int myBestV4ByScope[ZT_INETADDRESS_MAX_SCOPE+1];
-@@ -393,7 +553,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -393,7 +573,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(_key,true,aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1326,7 +1351,7 @@ index f77b4e6..59ded98 100644
  			} else {
  				Packet outp(other->_id.address(),RR->identity.address(),Packet::VERB_RENDEZVOUS);
  				outp.append((uint8_t)0);
-@@ -408,7 +568,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -408,7 +588,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(other->_key,true,other->aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1335,7 +1360,7 @@ index f77b4e6..59ded98 100644
  			}
  			++alt;
  		}
-@@ -449,11 +609,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +629,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
@@ -1369,7 +1394,7 @@ index f77b4e6..59ded98 100644
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +648,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +668,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
