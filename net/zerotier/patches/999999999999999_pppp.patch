@@ -226,10 +226,10 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..50bea78 100644
+index 95f093b..710be3a 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
-@@ -291,22 +291,22 @@
+@@ -291,7 +291,7 @@
  /**
   * Default MTU used for Ethernet tap device
   */
@@ -238,81 +238,15 @@ index 95f093b..50bea78 100644
  
  /**
   * Maximum number of packet fragments we'll support (protocol max: 16)
-  */
--#define ZT_MAX_PACKET_FRAGMENTS 7
-+#define ZT_MAX_PACKET_FRAGMENTS 4
- 
- /**
-  * Size of RX queue
-  */
--#define ZT_RX_QUEUE_SIZE 32
-+#define ZT_RX_QUEUE_SIZE 64
- 
- /**
-  * Size of TX queue
-  */
--#define ZT_TX_QUEUE_SIZE 32
-+#define ZT_TX_QUEUE_SIZE 64
- 
- /**
-  * Minimum delay between timer task checks to prevent thrashing
-@@ -326,7 +326,7 @@
- /**
-  * Transmit queue entry timeout
-  */
--#define ZT_TRANSMIT_QUEUE_TIMEOUT 5000
-+#define ZT_TRANSMIT_QUEUE_TIMEOUT 3000
- 
- /**
-  * Receive queue entry timeout
-@@ -348,7 +348,7 @@
- /**
-  * Period for multicast LIKE announcements
-  */
--#define ZT_MULTICAST_ANNOUNCE_PERIOD 60000
-+#define ZT_MULTICAST_ANNOUNCE_PERIOD 5000
- 
- /**
-  * Delay between explicit MULTICAST_GATHER requests for a given multicast channel
-@@ -365,17 +365,17 @@
- /**
-  * Delay between checks of peer pings, etc., and also related housekeeping tasks
-  */
--#define ZT_PING_CHECK_INTERVAL 5000
-+#define ZT_PING_CHECK_INTERVAL 2000
- 
- /**
-  * How often the local.conf file is checked for changes (service, should be moved there)
-  */
--#define ZT_LOCAL_CONF_FILE_CHECK_INTERVAL 10000
-+#define ZT_LOCAL_CONF_FILE_CHECK_INTERVAL 5000
- 
+@@ -375,7 +375,7 @@
  /**
   * How frequently to send heartbeats over in-use paths
   */
 -#define ZT_PATH_HEARTBEAT_PERIOD 14000
-+#define ZT_PATH_HEARTBEAT_PERIOD 3000
++#define ZT_PATH_HEARTBEAT_PERIOD 7000
  
  /**
   * Do not accept HELLOs over a given path more often than this
-@@ -385,7 +385,7 @@
- /**
-  * Delay between full-fledge pings of directly connected peers
-  */
--#define ZT_PEER_PING_PERIOD 60000
-+#define ZT_PEER_PING_PERIOD 15000
- 
- /**
-  * Paths are considered expired if they have not sent us a real packet in this long
-@@ -395,7 +395,7 @@
- /**
-  * How often to retry expired paths that we're still remembering
-  */
--#define ZT_PEER_EXPIRED_PATH_TRIAL_PERIOD (ZT_PEER_PING_PERIOD * 10)
-+#define ZT_PEER_EXPIRED_PATH_TRIAL_PERIOD (ZT_PEER_PING_PERIOD * 3)
- 
- /**
-  * Outgoing packets are only used for QoS/ACK statistical sampling if their
 @@ -428,7 +428,7 @@
   * CUTOFF_LIMIT times per CUTOFF_TIME milliseconds per peer to prevent
   * this from being useful for DOS amplification attacks.
@@ -322,87 +256,33 @@ index 95f093b..50bea78 100644
  
  /**
   * Minimum acceptable size for a VERB_QOS_MEASUREMENT packet
-@@ -458,7 +458,7 @@
- /**
-  * Interval used for rate-limiting the computation of path quality estimates.
-  */
--#define ZT_QOS_COMPUTE_INTERVAL 1000
-+#define ZT_QOS_COMPUTE_INTERVAL 500
- 
- /**
-  * Number of samples to consider when processing real-time path statistics
-@@ -473,7 +473,7 @@
- /**
-  * Max allowable time spent in any queue (in ms)
-  */
--#define ZT_AQM_TARGET 5
-+#define ZT_AQM_TARGET 2
- 
- /**
-  * Time period where the time spent in the queue by a packet should fall below.
-@@ -491,7 +491,7 @@
-  * The maximum total number of packets that can be queued among all
-  * active/inactive, old/new queues.
-  */
--#define ZT_AQM_MAX_ENQUEUED_PACKETS 1024
-+#define ZT_AQM_MAX_ENQUEUED_PACKETS 2048
- 
- /**
-  * Number of QoS queues (buckets)
-@@ -509,9 +509,9 @@
-  * Timeout for overall peer activity (measured from last receive)
-  */
- #ifndef ZT_SDK
--#define ZT_PEER_ACTIVITY_TIMEOUT 500000
-+#define ZT_PEER_ACTIVITY_TIMEOUT 20000
- #else
--#define ZT_PEER_ACTIVITY_TIMEOUT 30000
-+#define ZT_PEER_ACTIVITY_TIMEOUT 10000
- #endif
- 
- /**
-@@ -530,7 +530,7 @@
-  * Don't lengthen this as it affects things like QoS / uptime monitoring
-  * via ZeroTier Central. This is the heartbeat, basically.
-  */
--#define ZT_NETWORK_AUTOCONF_DELAY 60000
-+#define ZT_NETWORK_AUTOCONF_DELAY 5000
- 
- /**
-  * Minimum interval between attempts by relays to unite peers
-@@ -539,12 +539,12 @@
+@@ -539,7 +539,7 @@
   * a RENDEZVOUS message no more than this often. This instructs the peers
   * to attempt NAT-t and gives each the other's corresponding IP:port pair.
   */
 -#define ZT_MIN_UNITE_INTERVAL 30000
-+#define ZT_MIN_UNITE_INTERVAL 2000
++#define ZT_MIN_UNITE_INTERVAL 7000
  
  /**
   * How often should peers try memorized or statically defined paths?
-  */
--#define ZT_TRY_MEMORIZED_PATH_INTERVAL 30000
-+#define ZT_TRY_MEMORIZED_PATH_INTERVAL 5000
- 
- /**
-  * Sanity limit on maximum bridge routes
 @@ -565,17 +565,17 @@
  /**
   * Interval between direct path pushes in milliseconds
   */
 -#define ZT_DIRECT_PATH_PUSH_INTERVAL 15000
-+#define ZT_DIRECT_PATH_PUSH_INTERVAL 2000
++#define ZT_DIRECT_PATH_PUSH_INTERVAL 7000
  
  /**
   * Interval between direct path pushes in milliseconds if we already have a path
   */
 -#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 120000
-+#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 5000
++#define ZT_DIRECT_PATH_PUSH_INTERVAL_HAVEPATH 60000
  
  /**
   * Time horizon for push direct paths cutoff
   */
 -#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 30000
-+#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 3000
++#define ZT_PUSH_DIRECT_PATHS_CUTOFF_TIME 7000
  
  /**
   * Drainage constants for VERB_ECHO rate-limiters
@@ -415,42 +295,6 @@ index 95f093b..50bea78 100644
  
  /**
   * Maximum number of paths per IP scope (e.g. global, link-local) and family (e.g. v4/v6)
-@@ -636,7 +636,7 @@
- /**
-  * Minimum allowed amount of time between flow/path optimizations (anti-flapping)
-  */
--#define ZT_BOND_OPTIMIZE_INTERVAL 15000
-+#define ZT_BOND_OPTIMIZE_INTERVAL 5000
- 
- /**
-  * Maximum number of flows allowed before we start forcibly forgetting old ones
-@@ -653,7 +653,7 @@
-  * used while searching for default or alternative paths to try in the absence
-  * of direct guidance from the user or a selection policy.
-  */
--#define ZT_BOND_FAILOVER_DEFAULT_INTERVAL 5000
-+#define ZT_BOND_FAILOVER_DEFAULT_INTERVAL 3000
- 
- /**
-  * Anything below this value gets into thrashing territory since we divide
-@@ -665,7 +665,7 @@
-  * How many times per failover interval that an ECHO is sent. This should be
-  * at least 2. Anything more then 4 starts to increase overhead significantly.
-  */
--#define ZT_BOND_ECHOS_PER_FAILOVER_INTERVAL 3
-+#define ZT_BOND_ECHOS_PER_FAILOVER_INTERVAL 5
- 
- /**
-  * A defensive timer to prevent path quality metrics from being
-@@ -746,7 +746,7 @@
- /**
-  * Desired buffer size for UDP sockets (used in service and osdep but defined here)
-  */
--#define ZT_UDP_DESIRED_BUF_SIZE 1048576
-+#define ZT_UDP_DESIRED_BUF_SIZE 2097152
- 
- /**
-  * Desired / recommended min stack size for threads (used on some platforms to reset thread stack size)
 diff --git a/node/Identity.cpp b/node/Identity.cpp
 index f47de79..d0f4c9f 100644
 --- a/node/Identity.cpp
@@ -1131,10 +975,10 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..f74c98c 100644
+index 00ea90f..8e686ec 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
-@@ -17,9 +17,20 @@
+@@ -17,9 +17,10 @@
  
  namespace ZeroTier {
  
@@ -1144,21 +988,11 @@ index 00ea90f..f74c98c 100644
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
 +	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
 +	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
-+		_lastOut = now;
-+		return true;
-+	}
-+	return false;
-+}
-+
-+bool Path::sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
-+{
-+	// 根据这个path是否是tcp ok创建的,如果是就需要强制执行tcp的路径转发
-+	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len,0,verb)) {
  		_lastOut = now;
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..74e59e1 100644
+index d6167ce..5477d49 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -99,7 +99,8 @@ public:
@@ -1181,17 +1015,16 @@ index d6167ce..74e59e1 100644
  	{}
  
  	/**
-@@ -150,7 +152,8 @@ public:
+@@ -150,7 +152,7 @@ public:
  	 * @param now Current time
  	 * @return True if transport reported success
  	 */
 -	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now);
 +	bool send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
-+	bool sendByTCP(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb);
  
  	/**
  	 * Manually update last sent time
-@@ -371,6 +374,12 @@ public:
+@@ -371,6 +373,12 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1204,7 +1037,7 @@ index d6167ce..74e59e1 100644
  
  private:
  
-@@ -401,6 +410,8 @@ private:
+@@ -401,6 +409,8 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
@@ -1214,7 +1047,7 @@ index d6167ce..74e59e1 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..421d9f7 100644
+index f77b4e6..59ded98 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1395,38 +1228,38 @@ index f77b4e6..421d9f7 100644
  SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId)
  {
  	Mutex::Lock _l(_paths_m);
-@@ -263,6 +366,122 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+@@ -263,7 +366,8 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
  	if(_bond && _bond->isReady()) {
  		return _bond->getAppropriatePath(now, flowId);
  	}
+-	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
 +	
 +	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
-+	/**
-+	 * Send traffic across the highest quality path only. This algorithm will still
-+	 * use the old path quality metric from protocol version 9.
-+	 */
-+	long bestPathQuality = 2147483647;
-+	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
-+		if (_paths[i].p) {
-+			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+				const long q = _paths[i].p->quality(now) / _paths[i].priority;
-+				if (q <= bestPathQuality && !_paths[i].p->isTCPPacket()) {
-+					bestPathQuality = q;
+ 	/**
+ 	 * Send traffic across the highest quality path only. This algorithm will still
+ 	 * use the old path quality metric from protocol version 9.
+@@ -275,19 +379,75 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
+ 				const long q = _paths[i].p->quality(now) / _paths[i].priority;
+ 				if (q <= bestPathQuality) {
+ 					bestPathQuality = q;
+-					bestPath = i;
 +					bestUDPPath = i;
-+				}
-+			}
-+		} else {
-+			break;
-+		}
-+	}
+ 				}
+ 			}
+ 		} else {
+ 			break;
+ 		}
+ 	}
+-	if (bestPath != ZT_MAX_PEER_NETWORK_PATHS) {
+-		return _paths[bestPath].p;
 +	
 +	if (bestUDPPath != ZT_MAX_PEER_NETWORK_PATHS) {
 +		return _paths[bestUDPPath].p;
-+	}
+ 	}
 +	
-+	return SharedPtr<Path>();
-+}
-+
+ 	return SharedPtr<Path>();
+ }
+ 
 +/**
 + * @brief 获取所有适用的UDP网络路径，并按质量从优到劣排序。
 + *
@@ -1481,143 +1314,10 @@ index f77b4e6..421d9f7 100644
 +	return appropriatePaths;
 +}
 +
-+// flowId 获取path
-+SharedPtr<Path> Peer::getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId)
-+{
-+	Mutex::Lock _l(_paths_m);
-+	Mutex::Lock _lb(_bond_m);
-+	if(_bond && _bond->isReady()) {
-+		return _bond->getAppropriatePath(now, flowId);
-+	}
-+	
-+//	unsigned int bestUDPPath = ZT_MAX_PEER_NETWORK_PATHS;
-+//	/**
-+//	 * Send traffic across the highest quality path only. This algorithm will still
-+//	 * use the old path quality metric from protocol version 9.
-+//	 */
-+//	long bestPathQuality = 2147483647;
-+//	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
-+//		if (_paths[i].p) {
-+//			if ((!_paths[i].p->isTCPPacket()) && ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+//				const long q = _paths[i].p->quality(now) / _paths[i].priority;
-+//				if (q <= bestPathQuality && !_paths[i].p->isTCPPacket()) {
-+//					bestPathQuality = q;
-+//					bestUDPPath = i;
-+//				}
-+//			}
-+//		} else {
-+//			break;
-+//		}
-+//	}
-+//	
-+//	if (bestUDPPath != ZT_MAX_PEER_NETWORK_PATHS) {
-+//		// 如果存在活跃的udp path, 就返回udp path,不返回tcp
-+//		return _paths[bestUDPPath].p;
-+//	}
-+	
- 	unsigned int bestPath = ZT_MAX_PEER_NETWORK_PATHS;
- 	/**
- 	 * Send traffic across the highest quality path only. This algorithm will still
-@@ -271,7 +490,7 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
- 	long bestPathQuality = 2147483647;
- 	for(unsigned int i=0;i<ZT_MAX_PEER_NETWORK_PATHS;++i) {
- 		if (_paths[i].p) {
--			if ((includeExpired)||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+			if ((includeExpired && !_paths[i].p->isTCPPacket())||((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
- 				const long q = _paths[i].p->quality(now) / _paths[i].priority;
- 				if (q <= bestPathQuality) {
- 					bestPathQuality = q;
-@@ -282,12 +501,89 @@ SharedPtr<Path> Peer::getAppropriatePath(int64_t now, bool includeExpired, int32
- 			break;
- 		}
- 	}
-+	
- 	if (bestPath != ZT_MAX_PEER_NETWORK_PATHS) {
- 		return _paths[bestPath].p;
- 	}
- 	return SharedPtr<Path>();
- }
- 
-+/**
-+ * @brief 获取所有适用的路径，优先返回UDP路径列表，若无则返回TCP路径列表。
-+ *
-+ * @param now 当前时间戳
-+ * @param includeExpired 是否包含已过期的路径
-+ * @param flowId 流ID (主要用于bond)
-+ * @return 包含所有适用路径且已排序的向量(vector)。优先返回UDP路径。
-+ */
-+std::vector<SharedPtr<Path>> Peer::getAppropriatePathListByTCP(int64_t now, bool includeExpired, int32_t flowId)
-+{
-+	Mutex::Lock _l(_paths_m);
-+	Mutex::Lock _lb(_bond_m);
-+
-+	// 1. 如果存在一个就绪的bond，它将负责路径选择，我们直接返回其结果。
-+	if(_bond && _bond->isReady()) {
-+		std::vector<SharedPtr<Path>> appropriatePaths;
-+		SharedPtr<Path> bondPath = _bond->getAppropriatePath(now, flowId);
-+		if (bondPath) {
-+			appropriatePaths.push_back(bondPath);
-+		}
-+		return appropriatePaths;
-+	}
-+
-+	std::vector<PathWithQuality> udpPaths;
-+	std::vector<PathWithQuality> tcpPaths;
-+
-+	// 2. 遍历所有路径一次，将它们分类为UDP和TCP两个列表
-+	for(unsigned int i = 0; i < ZT_MAX_PEER_NETWORK_PATHS; ++i) {
-+		if (_paths[i].p) {
-+			// 检查路径是否活跃，或者是否要包含过期路径
-+			if (includeExpired || ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
-+				const long q = _paths[i].p->quality(now) / _paths[i].priority;
-+				
-+				if (_paths[i].p->isTCPPacket()) {
-+					tcpPaths.push_back({_paths[i].p, q});
-+				} else {
-+					udpPaths.push_back({_paths[i].p, q});
-+				}
-+			}
-+		} else {
-+			break;
-+		}
-+	}
-+
-+//	// 3. 优先返回UDP路径
-+//	if (!udpPaths.empty()) {
-+//		// 对UDP路径按质量排序
-+//		std::sort(udpPaths.begin(), udpPaths.end());
-+//		
-+//		// 准备最终返回的列表
-+//		std::vector<SharedPtr<Path>> resultPaths;
-+//		resultPaths.reserve(udpPaths.size());
-+//		for (const auto& pq : udpPaths) {
-+//			resultPaths.push_back(pq.path);
-+//		}
-+//		return resultPaths;
-+//	}
-+
-+	// 4. 如果没有可用的UDP路径，则回退到TCP路径
-+	if (!tcpPaths.empty()) {
-+		// 对TCP路径按质量排序
-+		std::sort(tcpPaths.begin(), tcpPaths.end());
-+
-+		// 准备最终返回的列表
-+		std::vector<SharedPtr<Path>> resultPaths;
-+		resultPaths.reserve(tcpPaths.size());
-+		for (const auto& pq : tcpPaths) {
-+			resultPaths.push_back(pq.path);
-+		}
-+		return resultPaths;
-+	}
-+	
-+	// 5. 如果没有任何可用路径，返回空列表
-+	return std::vector<SharedPtr<Path>>();
-+}
-+
  void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &other) const
  {
  	unsigned int myBestV4ByScope[ZT_INETADDRESS_MAX_SCOPE+1];
-@@ -393,7 +689,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -393,7 +553,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(_key,true,aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1626,7 +1326,7 @@ index f77b4e6..421d9f7 100644
  			} else {
  				Packet outp(other->_id.address(),RR->identity.address(),Packet::VERB_RENDEZVOUS);
  				outp.append((uint8_t)0);
-@@ -408,7 +704,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
+@@ -408,7 +568,7 @@ void Peer::introduce(void *const tPtr,const int64_t now,const SharedPtr<Peer> &o
  				}
  				outp.armor(other->_key,true,other->aesKeysIfSupported());
  				Metrics::pkt_rendezvous_out++;
@@ -1635,7 +1335,7 @@ index f77b4e6..421d9f7 100644
  			}
  			++alt;
  		}
-@@ -449,11 +745,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
+@@ -449,11 +609,32 @@ void Peer::sendHELLO(void *tPtr,const int64_t localSocket,const InetAddress &atA
  	outp.cryptField(_key,startCryptedPortionAt,outp.size() - startCryptedPortionAt);
  
  	Metrics::pkt_hello_out++;
@@ -1669,7 +1369,7 @@ index f77b4e6..421d9f7 100644
  	} else {
  		RR->node->expectReplyTo(outp.packetId());
  		RR->sw->send(tPtr,outp,false); // false == don't encrypt full payload, but add MAC
-@@ -467,7 +784,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
+@@ -467,7 +648,22 @@ void Peer::attemptToContactAt(void *tPtr,const int64_t localSocket,const InetAdd
  		outp.armor(_key,true,aesKeysIfSupported());
  		Metrics::pkt_echo_out++;
  		RR->node->expectReplyTo(outp.packetId());
@@ -1694,7 +1394,7 @@ index f77b4e6..421d9f7 100644
  		sendHELLO(tPtr,localSocket,atAddress,now);
  	}
 diff --git a/node/Peer.hpp b/node/Peer.hpp
-index 777a1e9..d2ce875 100644
+index 777a1e9..bee31e4 100644
 --- a/node/Peer.hpp
 +++ b/node/Peer.hpp
 @@ -67,6 +67,8 @@ public:
@@ -1716,7 +1416,7 @@ index 777a1e9..d2ce875 100644
  	/**
  	 * Check whether we have an active path to this peer via the given address
  	 *
-@@ -139,12 +142,76 @@ public:
+@@ -139,14 +142,37 @@ public:
  	 * @param force If true, send even if path is not alive
  	 * @return True if we actually sent something
  	 */
@@ -1736,7 +1436,7 @@ index 777a1e9..d2ce875 100644
 -			return bp->send(RR,tPtr,data,len,now);
 +		// 1. Get the list of all appropriate paths, sorted by quality.
 +		// Note: We are passing a default flowId of 0 since the original function didn't use it.
-+		std::vector<SharedPtr<Path>> paths = getAppropriatePathList(now, force, 0);
++		std::vector<SharedPtr<Path>> paths = getAppropriatePathList(now, force);
 +
 +		// 2. Iterate through each path in the list.
 +		for (const auto& path : paths) {
@@ -1749,66 +1449,24 @@ index 777a1e9..d2ce875 100644
 +					return true;
 +				}
 +			}
-+		}
-+
-+		return false;
-+//		return sendDirectByTCP(tPtr, data, len, now, force);
-+	}
-+	
-+	/**
-+	 * Send via best direct path
-+	 *
-+	 * @param tPtr Thread pointer to be handed through to any callbacks called as a result of this call
-+	 * @param data Packet data
-+	 * @param len Packet length
-+	 * @param now Current time
-+	 * @param force If true, send even if path is not alive
-+	 * @return True if we actually sent something
-+	 */
-+//	inline bool sendDirectByTCP(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
-+//	{
-+//		SharedPtr<Path> bp(getAppropriatePathByTCP(now,force));
-+//		if (bp) {
-+//			// 关键快速连接
-+//			return bp->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP);
-+//		}
-+//		return false;
-+//	}
-+	inline bool sendDirectByTCP(void *tPtr,const void *data,unsigned int len,int64_t now,bool force)
-+	{
-+		// 1. Get the list of all appropriate paths, sorted by quality.
-+		// Note: We are passing a default flowId of 0 since the original function didn't use it.
-+		std::vector<SharedPtr<Path>> paths = getAppropriatePathListByTCP(now, force, 0);
-+
-+		// 2. Iterate through each path in the list.
-+		for (const auto& path : paths) {
-+			if (path) {
-+				// 3. Attempt to send data on the current path.
-+				// The send parameters (RR, VERB_NOTCP, etc.) are preserved from the original.
-+				if (path->send(RR,tPtr,data,len,now,Packet::VERB_FORCETCP)) {
-+					// 4. If send() returns true, it was successful.
-+					// Stop the loop immediately and return true from sendDirect.
-+					return true;
-+				}
-+			}
  		}
 +
  		return false;
  	}
++	
  
-@@ -191,6 +258,11 @@ public:
+ 	/**
+ 	 * Record incoming packets to
+@@ -191,6 +217,8 @@ public:
  	 * @return Best current path or NULL if none
  	 */
  	SharedPtr<Path> getAppropriatePath(int64_t now, bool includeExpired, int32_t flowId = -1);
 +	
-+	SharedPtr<Path> getAppropriatePathByTCP(int64_t now, bool includeExpired, int32_t flowId = -1);
-+	
-+	std::vector<SharedPtr<Path>> getAppropriatePathList(int64_t now, bool includeExpired, int32_t flowId);
-+	std::vector<SharedPtr<Path>> getAppropriatePathListByTCP(int64_t now, bool includeExpired, int32_t flowId);
++	std::vector<SharedPtr<Path>> getAppropriatePathList(int64_t now, bool includeExpired, int32_t flowId = -1);
  
  	/**
  	 * Send VERB_RENDEZVOUS to this and another peer via the best common IP scope and path
-@@ -540,7 +612,15 @@ public:
+@@ -540,7 +568,15 @@ public:
  				return SharedPtr<Peer>();
  			}
  
@@ -1824,7 +1482,7 @@ index 777a1e9..d2ce875 100644
  
  			p->_vProto = b.template at<uint16_t>(ptr);
  			ptr += 2;
-@@ -620,6 +700,49 @@ public:
+@@ -620,6 +656,49 @@ public:
  
  	inline const AES *aesKeys() const
  	{ return _aesKeys; }
@@ -1874,7 +1532,7 @@ index 777a1e9..d2ce875 100644
  
  private:
  	struct _PeerPath
-@@ -634,6 +757,10 @@ private:
+@@ -634,6 +713,10 @@ private:
  	AES _aesKeys[2];
  
  	const RuntimeEnvironment *RR;
@@ -2108,7 +1766,7 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
-index 23e6393..d03879e 100644
+index 23e6393..8f6e83d 100644
 --- a/osdep/Binder.hpp
 +++ b/osdep/Binder.hpp
 @@ -63,7 +63,7 @@
@@ -2116,7 +1774,7 @@ index 23e6393..d03879e 100644
  
  // Period between refreshes of bindings
 -#define ZT_BINDER_REFRESH_PERIOD 30000
-+#define ZT_BINDER_REFRESH_PERIOD 5000
++#define ZT_BINDER_REFRESH_PERIOD 15000
  
  // Max number of bindings
  #define ZT_BINDER_MAX_BINDINGS 256
@@ -2149,7 +1807,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..2d15ca9 100644
+index 594ff02..04100cd 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2475,7 +2133,7 @@ index 594ff02..2d15ca9 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,8 +3742,47 @@ public:
+@@ -3612,85 +3742,184 @@ public:
  		return -1;
  	}
  
@@ -2483,10 +2141,13 @@ index 594ff02..2d15ca9 100644
 +	inline int nodeWirePacketSendFunction(const int64_t localSocket,const struct sockaddr_storage *addr,const void *data,unsigned int len,unsigned int ttl,Packet::Verb verb)
  	{
 +		
-+//		const InetAddress *inetAddrPtr = reinterpret_cast<const InetAddress *>(addr);
-+//		const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
-+//		
-+//		bool isTCPPath = path->isTCPPacket();
++		const InetAddress *inetAddrPtr = reinterpret_cast<const InetAddress *>(addr);
++		const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
++
++		const int64_t now = OSUtils::now();
++		bool isPathAlive = path->alive(now);
++		bool isTCPPath = path->isTCPPacket();
++		
 +		
 +		bool isForceTCP = false;
 +		
@@ -2513,21 +2174,18 @@ index 594ff02..2d15ca9 100644
 +			} else {
 +				result = ((_binder.udpSendAll(_phy,addr,data,len,ttl)) ? 0 : -1);
 +			}
-+			
-+			return result;
-+			
-+		} else {
-+			
-+		
-+			bool returnResult = -1;
++
 +			
  #ifdef ZT_TCP_FALLBACK_RELAY
- 		if(_allowTcpFallbackRelay) {
+-		if(_allowTcpFallbackRelay) {
++		if(_allowTcpFallbackRelay && (!isPathAlive || isTCPPath)) {
  			if (addr->ss_family == AF_INET) {
-@@ -3623,74 +3792,65 @@ public:
+ 				// TCP fallback tunnel support, currently IPv4 only
+ 				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
+ 					// Engage TCP tunnel fallback if we haven't received anything valid from a global
  					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
  					// valid direct traffic we'll stop using it and close the socket after a while.
- 					const int64_t now = OSUtils::now();
+-					const int64_t now = OSUtils::now();
 -					if (_forceTcpRelay || (((now - _lastDirectReceiveFromGlobal) > ZT_TCP_FALLBACK_AFTER)&&((now - _lastRestart) > ZT_TCP_FALLBACK_AFTER))) {
 -						if (_tcpFallbackTunnel) {
 -							bool flushNow = false;
@@ -2548,6 +2206,7 @@ index 594ff02..2d15ca9 100644
 -									_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr))),4);
 -									_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_port))),2);
 -									_tcpFallbackTunnel->writeq.append((const char *)data,len);
++//					const int64_t now = OSUtils::now();
 +					if (_tcpFallbackTunnel) {
 +						bool flushNow = false;
 +						{
@@ -2568,9 +2227,9 @@ index 594ff02..2d15ca9 100644
 +								_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_port))),2);
 +								_tcpFallbackTunnel->writeq.append((const char *)data,len);
 +								
-+								returnResult = 0;
++								result = 0;
 +							} else {
-+								returnResult = -1;
++								result = -1;
  							}
 -							if (flushNow) {
 -								void *tmpptr = (void *)_tcpFallbackTunnel;
@@ -2613,7 +2272,7 @@ index 594ff02..2d15ca9 100644
 +						bool connected = false;
 +						_phy.tcpConnect(reinterpret_cast<const struct sockaddr *>(&addr),connected,(void *)tc,true);
 +						
-+						returnResult = -1;
++						result = -1;
  					}
  					_lastSendToGlobalV4 = now;
  				}
@@ -2638,17 +2297,88 @@ index 594ff02..2d15ca9 100644
 -                _phy.setIp4UdpTtl((PhySocket *)((uintptr_t)localSocket),255);
 -            }
 -			return ((r) ? 0 : -1);
--		} else {
++			
++			
++			return result;
++			
+ 		} else {
 -			return ((_binder.udpSendAll(_phy,addr,data,len,ttl)) ? 0 : -1);
++			
++		
++			bool returnResult = -1;
++			
++#ifdef ZT_TCP_FALLBACK_RELAY
++		if(_allowTcpFallbackRelay) {
++			if (addr->ss_family == AF_INET) {
++				// TCP fallback tunnel support, currently IPv4 only
++				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
++					// Engage TCP tunnel fallback if we haven't received anything valid from a global
++					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
++					// valid direct traffic we'll stop using it and close the socket after a while.
++//					const int64_t now = OSUtils::now();
++					if (_tcpFallbackTunnel) {
++						bool flushNow = false;
++						{
++							Mutex::Lock _l(_tcpFallbackTunnel->writeq_m);
++							if (_tcpFallbackTunnel->writeq.size() < (1024 * 64)) {
++								if (_tcpFallbackTunnel->writeq.length() == 0) {
++									_phy.setNotifyWritable(_tcpFallbackTunnel->sock,true);
++									flushNow = true;
++								}
++								const unsigned long mlen = len + 7;
++								_tcpFallbackTunnel->writeq.push_back((char)0x17);
++								_tcpFallbackTunnel->writeq.push_back((char)0x03);
++								_tcpFallbackTunnel->writeq.push_back((char)0x03); // fake TLS 1.2 header
++								_tcpFallbackTunnel->writeq.push_back((char)((mlen >> 8) & 0xff));
++								_tcpFallbackTunnel->writeq.push_back((char)(mlen & 0xff));
++								_tcpFallbackTunnel->writeq.push_back((char)4); // IPv4
++								_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr))),4);
++								_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_port))),2);
++								_tcpFallbackTunnel->writeq.append((const char *)data,len);
++								
++								returnResult = 0;
++							} else {
++								returnResult = -1;
++							}
++						}
++						if (flushNow) {
++							void *tmpptr = (void *)_tcpFallbackTunnel;
++							phyOnTcpWritable(_tcpFallbackTunnel->sock,&tmpptr);
++						}
++						
++					} else {
++						const InetAddress addr(_fallbackRelayAddress);
++						TcpConnection *tc = new TcpConnection();
++						{
++							Mutex::Lock _l(_tcpConnections_m);
++							_tcpConnections.push_back(tc);
++						}
++						tc->type = TcpConnection::TCP_TUNNEL_OUTGOING;
++						tc->remoteAddr = addr;
++						tc->lastReceive = OSUtils::now();
++						tc->parent = this;
++						tc->sock = (PhySocket *)0; // set in connect handler
++						tc->messageSize = 0;
++						bool connected = false;
++						_phy.tcpConnect(reinterpret_cast<const struct sockaddr *>(&addr),connected,(void *)tc,true);
++						
++						returnResult = -1;
++					}
++					_lastSendToGlobalV4 = now;
++				}
++			}
+ 		}
++		
++#endif // ZT_TCP_FALLBACK_RELAY
 +			
 +			return returnResult;
 +			
- 		}
++		}
 +
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4069,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4138,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
