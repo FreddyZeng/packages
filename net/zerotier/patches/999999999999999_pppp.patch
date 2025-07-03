@@ -1591,7 +1591,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..5eeeaea 100644
+index 7664f7a..1c55012 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1636,8 +1636,7 @@ index 7664f7a..5eeeaea 100644
 +					
 +					bool isForceSendHopFlag = fragment.isForceSendHopFlag(); // 强制转发分片标记
  
--					if (fragment.hops() < ZT_RELAY_MAX_HOPS) {
-+					if (fragment.hops() < ZT_RELAY_MAX_HOPS || isForceSendHopFlag) {
+ 					if (fragment.hops() < ZT_RELAY_MAX_HOPS) {
  						fragment.incrementHops();
 +						
 +						if (isForceSendHopFlag) {
@@ -1647,7 +1646,7 @@ index 7664f7a..5eeeaea 100644
  
  						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
  						// It wouldn't hurt anything, just redundant and unnecessary.
-@@ -197,8 +215,25 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -197,6 +215,23 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
  					Packet packet(data,len);
@@ -1669,11 +1668,8 @@ index 7664f7a..5eeeaea 100644
 +					}
 +					
  
--					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
-+					if (packet.hops() < ZT_RELAY_MAX_HOPS || forceSend) {
+ 					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
  						packet.incrementHops();
- 						SharedPtr<Peer> relayTo = RR->topology->getPeer(tPtr,destination);
- 						if ((relayTo)&&(relayTo->sendDirect(tPtr,packet.data(),packet.size(),now,false))) {
 @@ -968,7 +1003,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
