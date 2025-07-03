@@ -1047,7 +1047,7 @@ index d6167ce..5477d49 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..8609cea 100644
+index f77b4e6..e617afb 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1076,7 +1076,7 @@ index f77b4e6..8609cea 100644
 +	// 定义比较操作符，方便排序
 +	bool operator<(const PathWithQuality& other) const {
 +		
-+		if (path->isTCPPacket() != other->isTCPPacket()) {
++		if (path->isTCPPacket() != other.path->isTCPPacket()) {
 +			if (!path->isTCPPacket()) {
 +				return true;
 +			} else {
@@ -1262,7 +1262,7 @@ index f77b4e6..8609cea 100644
 +					bestUDPPath = i;
 +				}
 +				
-+				if (q <= bestTCPPathQuality && _paths[i].p->isTCPPacket())) {
++				if (q <= bestTCPPathQuality && _paths[i].p->isTCPPacket()) {
 +					bestTCPPathQuality = q;
 +					bestTCPPath = i;
  				}
