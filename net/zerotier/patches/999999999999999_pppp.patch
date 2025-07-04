@@ -975,7 +975,7 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..cecc157 100644
+index 00ea90f..a4544f4 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
 @@ -14,12 +14,32 @@
@@ -996,13 +996,13 @@ index 00ea90f..cecc157 100644
 +
 +	if (peer) {
 +		if (needsHeartbeat(now) && alive(now)) {
-+			if ((now - _lastOut > 3000) || _lastOut == 0) {
-+				_lastOut = now;
++			if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++				_lastSendHello = now;
 +				peer->attemptToContactAt(tPtr,_localSocket,_addr,now,false);
 +			}
 +		} else if (!alive(now)) {
-+			if ((now - _lastOut > 3000) || _lastOut == 0) {
-+				_lastOut = now;
++			if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++				_lastSendHello = now;
 +				peer->sendHELLO(tPtr,_localSocket,_addr,now);
 +			}
 +		}
@@ -1014,7 +1014,7 @@ index 00ea90f..cecc157 100644
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..2db84bc 100644
+index d6167ce..5cad89b 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -28,6 +28,7 @@
@@ -1025,7 +1025,15 @@ index d6167ce..2db84bc 100644
  
  /**
   * Maximum return value of preferenceRank()
-@@ -99,7 +100,9 @@ public:
+@@ -80,6 +81,7 @@ public:
+ 	};
+ 
+ 	Path() :
++		_lastSendHello(0),
+ 		_lastOut(0),
+ 		_lastIn(0),
+ 		_lastTrustEstablishedPacketReceived(0),
+@@ -99,10 +101,13 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(),
@@ -1036,7 +1044,11 @@ index d6167ce..2db84bc 100644
  		{}
  
  	Path(const int64_t localSocket,const InetAddress &addr) :
-@@ -122,7 +125,9 @@ public:
++		_lastSendHello(0),
+ 		_lastOut(0),
+ 		_lastIn(0),
+ 		_lastTrustEstablishedPacketReceived(0),
+@@ -122,7 +127,9 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(addr),
@@ -1047,7 +1059,7 @@ index d6167ce..2db84bc 100644
  	{}
  
  	/**
-@@ -150,7 +155,7 @@ public:
+@@ -150,7 +157,7 @@ public:
  	 * @param now Current time
  	 * @return True if transport reported success
  	 */
@@ -1056,7 +1068,7 @@ index d6167ce..2db84bc 100644
  
  	/**
  	 * Manually update last sent time
-@@ -371,6 +376,16 @@ public:
+@@ -371,11 +378,22 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1073,7 +1085,13 @@ index d6167ce..2db84bc 100644
  
  private:
  
-@@ -401,6 +416,10 @@ private:
+ 	char _ifname[ZT_MAX_PHYSIFNAME] = { };
+ 
++	volatile int64_t _lastSendHello;
+ 	volatile int64_t _lastOut;
+ 	volatile int64_t _lastIn;
+ 	volatile int64_t _lastTrustEstablishedPacketReceived;
+@@ -401,6 +419,10 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
