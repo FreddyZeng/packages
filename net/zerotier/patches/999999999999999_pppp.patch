@@ -992,7 +992,7 @@ index 00ea90f..8e686ec 100644
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..cfcd134 100644
+index d6167ce..2db84bc 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -28,6 +28,7 @@
@@ -1047,7 +1047,7 @@ index d6167ce..cfcd134 100644
 +	
 +	inline const Address &peerAddress() const { return _peerAddress; }
 +	
-+	inline void setPeerAddress(const Address &peerAddress) const { _peerAddress = peerAddress; }
++	inline void setPeerAddress(const Address &peerAddress) { _peerAddress = peerAddress; }
  
  private:
  
