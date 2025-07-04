@@ -975,10 +975,16 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..9d10337 100644
+index 00ea90f..cecc157 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
-@@ -17,9 +17,26 @@
+@@ -14,12 +14,32 @@
+ #include "Path.hpp"
+ #include "RuntimeEnvironment.hpp"
+ #include "Node.hpp"
++#include "Topology.hpp"
++#include "Peer.hpp"
++
  
  namespace ZeroTier {
  
@@ -986,18 +992,18 @@ index 00ea90f..9d10337 100644
 +bool Path::send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
  {
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
-+	const SharedPtr<Peer> peer(RR->topology->getPeerNoCache(path->peerAddress()));
++	const SharedPtr<Peer> peer(RR->topology->getPeerNoCache(peerAddress()));
 +
 +	if (peer) {
 +		if (needsHeartbeat(now) && alive(now)) {
 +			if ((now - _lastOut > 3000) || _lastOut == 0) {
 +				_lastOut = now;
-+				peer->attemptToContactAt(tptr,_localSocket,_localSocket,now,false);
++				peer->attemptToContactAt(tPtr,_localSocket,_addr,now,false);
 +			}
 +		} else if (!alive(now)) {
 +			if ((now - _lastOut > 3000) || _lastOut == 0) {
 +				_lastOut = now;
-+				peer->sendHELLO(tptr,_localSocket,_addr,now);
++				peer->sendHELLO(tPtr,_localSocket,_addr,now);
 +			}
 +		}
 +	}
