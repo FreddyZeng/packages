@@ -1846,7 +1846,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..54cc92d 100644
+index 594ff02..eeb49f7 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2188,7 +2188,7 @@ index 594ff02..54cc92d 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,85 +3744,199 @@ public:
+@@ -3612,85 +3744,201 @@ public:
  		return -1;
  	}
  
@@ -2214,16 +2214,18 @@ index 594ff02..54cc92d 100644
 +			isForceTCP = true;
 +		}
 +		
-+		if (needsHeartbeat) {
-+			if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
-+				peer->attemptToContactAt(tptr,localSocket,addr,now,false);
++		if (peer) {
++			if (needsHeartbeat) {
++				if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++					peer->attemptToContactAt(tptr,localSocket,addr,now,false);
++				}
++				_lastSendHello = now;
++			} else if (!isPathAlive) {
++				if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++					peer->sendHELLO(tptr,localSocket,addr,now);
++				}
++				_lastSendHello = now;
 +			}
-+			_lastSendHello = now;
-+		} else if (!isPathAlive) {
-+			if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
-+				peer->sendHELLO(tptr,localSocket,addr,now);
-+			}
-+			_lastSendHello = now;
 +		}
 +		
 +		bool result = -1;
@@ -2448,7 +2450,7 @@ index 594ff02..54cc92d 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4155,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4157,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
