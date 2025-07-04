@@ -1846,7 +1846,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..eeb49f7 100644
+index 594ff02..1a58ac9 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2217,14 +2217,14 @@ index 594ff02..eeb49f7 100644
 +		if (peer) {
 +			if (needsHeartbeat) {
 +				if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++					_lastSendHello = now;
 +					peer->attemptToContactAt(tptr,localSocket,addr,now,false);
 +				}
-+				_lastSendHello = now;
 +			} else if (!isPathAlive) {
 +				if ((now - _lastSendHello > 3000) || _lastSendHello == 0) {
++					_lastSendHello = now;
 +					peer->sendHELLO(tptr,localSocket,addr,now);
 +				}
-+				_lastSendHello = now;
 +			}
 +		}
 +		
