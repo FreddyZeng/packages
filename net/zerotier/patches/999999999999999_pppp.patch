@@ -975,7 +975,7 @@ index f607d1f..b438f4c 100644
  		 * No operation (ignored, no reply)
  		 */
 diff --git a/node/Path.cpp b/node/Path.cpp
-index 00ea90f..7f658dd 100644
+index 00ea90f..9d10337 100644
 --- a/node/Path.cpp
 +++ b/node/Path.cpp
 @@ -17,9 +17,26 @@
@@ -986,7 +986,7 @@ index 00ea90f..7f658dd 100644
 +bool Path::send(const RuntimeEnvironment *RR,void *tPtr,const void *data,unsigned int len,int64_t now,Packet::Verb verb)
  {
 -	if (RR->node->putPacket(tPtr,_localSocket,_addr,data,len)) {
-+	const SharedPtr<Peer> peer(_node->RR->topology->getPeerNoCache(path->peerAddress()));
++	const SharedPtr<Peer> peer(RR->topology->getPeerNoCache(path->peerAddress()));
 +
 +	if (peer) {
 +		if (needsHeartbeat(now) && alive(now)) {
