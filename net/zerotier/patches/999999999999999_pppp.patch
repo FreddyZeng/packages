@@ -763,7 +763,7 @@ index 2537c0f..773836a 100644
  
  } // namespace ZeroTier
 diff --git a/node/InetAddress.cpp b/node/InetAddress.cpp
-index 31100d6..be21035 100644
+index 31100d6..6c51f8b 100644
 --- a/node/InetAddress.cpp
 +++ b/node/InetAddress.cpp
 @@ -217,6 +217,19 @@ char *InetAddress::toIpString(char buf[64]) const
@@ -776,7 +776,7 @@ index 31100d6..be21035 100644
 +{
 +	// 修正1 & 2: 直接在 this 上通过内部成员安全访问，无拷贝、无封装破坏
 +	if (ss_family == AF_INET) {
-+		out_ip = &reinterpret_cast<const struct sockaddr_in *>(this)->sin_addr.s_addr;
++		out_ip = reinterpret_cast<const struct sockaddr_in *>(this)->sin_addr.s_addr;
 +		return true; // 修正3: 返回 true，明确表示成功
 +	} else {
 +		return false; // 修正3: 返回 false，明确表示失败
@@ -787,14 +787,14 @@ index 31100d6..be21035 100644
  {
  	char buf[64];
 diff --git a/node/InetAddress.hpp b/node/InetAddress.hpp
-index 7e2a15d..190dd5c 100644
+index 7e2a15d..bc6a412 100644
 --- a/node/InetAddress.hpp
 +++ b/node/InetAddress.hpp
 @@ -253,6 +253,8 @@ struct InetAddress : public sockaddr_storage
  	 */
  	char *toIpString(char buf[64]) const;
  
-+	bool InetAddress::getIPv4(uint32_t& out_ip);
++	bool getIPv4(uint32_t& out_ip);
 +	
  	/**
  	 * @param ipSlashPort IP/port (port is optional, will be 0 if not included)
