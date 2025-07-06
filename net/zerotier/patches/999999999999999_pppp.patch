@@ -1,5 +1,5 @@
 diff --git a/include/ZeroTierOne.h b/include/ZeroTierOne.h
-index 4482346..bc096cd 100644
+index 4482346..c80e286 100644
 --- a/include/ZeroTierOne.h
 +++ b/include/ZeroTierOne.h
 @@ -1669,7 +1669,7 @@ typedef int (*ZT_WirePacketSendFunction)(
@@ -11,18 +11,19 @@ index 4482346..bc096cd 100644
  
  /**
   * Function to check whether a path should be used for ZeroTier traffic
-@@ -1826,7 +1826,8 @@ ZT_SDK_API enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -1826,7 +1826,9 @@ ZT_SDK_API enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
 -	volatile int64_t *nextBackgroundTaskDeadline);
 +	volatile int64_t *nextBackgroundTaskDeadline,
-+	bool isTCPPacket);
++	bool isTCPPacket,
++	bool isTCPRelaySendPacket);
  
  /**
   * Process a frame from a virtual network port (tap)
 diff --git a/java/jni/com_zerotierone_sdk_Node.cpp b/java/jni/com_zerotierone_sdk_Node.cpp
-index ba16278..44df8ab 100644
+index ba16278..8f4cedd 100644
 --- a/java/jni/com_zerotierone_sdk_Node.cpp
 +++ b/java/jni/com_zerotierone_sdk_Node.cpp
 @@ -592,7 +592,8 @@ namespace {
@@ -35,16 +36,21 @@ index ba16278..44df8ab 100644
      {
          LOGV("WirePacketSendFunction(%" PRId64 ", %p, %p, %u, %u)", localSocket, remoteAddress, buffer, bufferSize, ttl);
          JniRef *ref = (JniRef*)userData;
-@@ -1092,7 +1093,8 @@ JNIEXPORT jobject JNICALL Java_com_zerotier_sdk_Node_processWirePacket(
+@@ -1092,7 +1093,9 @@ JNIEXPORT jobject JNICALL Java_com_zerotier_sdk_Node_processWirePacket(
          &remoteAddress,
          localData,
          packetLength,
 -        &nextBackgroundTaskDeadline);
 +        &nextBackgroundTaskDeadline,
++		false,
 +		false);
      if (env->ExceptionCheck()) {
          LOGE("Exception calling ZT_Node_processWirePacket");
          free(localData);
+diff --git a/java/src/com/zerotier/.DS_Store b/java/src/com/zerotier/.DS_Store
+new file mode 100644
+index 0000000..8e01c8e
+Binary files /dev/null and b/java/src/com/zerotier/.DS_Store differ
 diff --git a/node/Bond.cpp b/node/Bond.cpp
 index 2a06179..8460d17 100644
 --- a/node/Bond.cpp
@@ -226,7 +232,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..08f0b8f 100644
+index 95f093b..ba78127 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,7 +291,7 @@
@@ -256,6 +262,15 @@ index 95f093b..08f0b8f 100644
  
  /**
   * Minimum acceptable size for a VERB_QOS_MEASUREMENT packet
+@@ -509,7 +509,7 @@
+  * Timeout for overall peer activity (measured from last receive)
+  */
+ #ifndef ZT_SDK
+-#define ZT_PEER_ACTIVITY_TIMEOUT 500000
++#define ZT_PEER_ACTIVITY_TIMEOUT 30000
+ #else
+ #define ZT_PEER_ACTIVITY_TIMEOUT 30000
+ #endif
 @@ -539,7 +539,7 @@
   * a RENDEZVOUS message no more than this often. This instructs the peers
   * to attempt NAT-t and gives each the other's corresponding IP:port pair.
@@ -828,25 +843,57 @@ index 1643487..4299f8f 100644
  		if (_config) {
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
+diff --git a/node/NetworkConfig.hpp b/node/NetworkConfig.hpp
+index 65e4c83..fe0e3b1 100644
+--- a/node/NetworkConfig.hpp
++++ b/node/NetworkConfig.hpp
+@@ -433,7 +433,7 @@ public:
+ 	{
+ 		std::vector<Address> r;
+ 		for(unsigned int i=0;i<specialistCount;++i) {
+-			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
++			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
+ 				r.push_back(Address(specialists[i]));
+ 			}
+ 		}
+@@ -444,7 +444,7 @@ public:
+ 	{
+ 		unsigned int c = 0;
+ 		for(unsigned int i=0;i<specialistCount;++i) {
+-			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
++			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
+ 				ac[c++] = specialists[i];
+ 			}
+ 		}
+@@ -454,7 +454,7 @@ public:
+ 	inline void alwaysContactAddresses(Hashtable< Address,std::vector<InetAddress> > &a) const
+ 	{
+ 		for(unsigned int i=0;i<specialistCount;++i) {
+-			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
++			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
+ 				a[Address(specialists[i])];
+ 			}
+ 		}
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..3c1ecde 100644
+index 1f377c5..4888b1b 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
-@@ -211,10 +211,11 @@ ZT_ResultCode Node::processWirePacket(
+@@ -211,10 +211,12 @@ ZT_ResultCode Node::processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
 -	volatile int64_t *nextBackgroundTaskDeadline)
 +	volatile int64_t *nextBackgroundTaskDeadline,
-+	bool isTCPPacket)
++	bool isTCPPacket,
++	bool isTCPRelaySendPacket)
  {
  	_now = now;
 -	RR->sw->onRemotePacket(tptr,localSocket,*(reinterpret_cast<const InetAddress *>(remoteAddress)),packetData,packetLength);
-+	RR->sw->onRemotePacket(tptr,localSocket,*(reinterpret_cast<const InetAddress *>(remoteAddress)),packetData,packetLength,isTCPPacket);
++	RR->sw->onRemotePacket(tptr,localSocket,*(reinterpret_cast<const InetAddress *>(remoteAddress)),packetData,packetLength,isTCPPacket,isTCPRelaySendPacket);
  	return ZT_RESULT_OK;
  }
  
-@@ -266,7 +267,7 @@ public:
+@@ -266,7 +268,7 @@ public:
  			ZT_PeerRole role = RR->topology->role(p->address());
  
  			// Contact upstream peers as infrequently as possible
@@ -855,7 +902,7 @@ index 1f377c5..3c1ecde 100644
  
  			// Unless we don't any have paths to the roots, then we shouldn't wait a long time to contact them
  			bool hasPaths = p->paths(RR->node->now()).size() > 0;
-@@ -303,6 +304,7 @@ public:
+@@ -303,6 +305,7 @@ public:
  
  			if ((!contacted)&&(_bestCurrentUpstream)) {
  				const SharedPtr<Path> up(_bestCurrentUpstream->getAppropriatePath(_now,true));
@@ -863,7 +910,17 @@ index 1f377c5..3c1ecde 100644
  				if (up) {
  					p->sendHELLO(_tPtr,up->localSocket(),up->address(),_now);
  				}
-@@ -402,6 +404,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+@@ -337,7 +340,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+ 		}
+ 	}
+ 
+-	unsigned long timeUntilNextPingCheck = _lowBandwidthMode ? (ZT_PING_CHECK_INTERVAL * 5) : ZT_PING_CHECK_INTERVAL;
++//	unsigned long timeUntilNextPingCheck = _lowBandwidthMode ? (ZT_PING_CHECK_INTERVAL * 5) : ZT_PING_CHECK_INTERVAL;
++	unsigned long timeUntilNextPingCheck = ZT_PING_CHECK_INTERVAL;
+ 	const int64_t timeSinceLastPingCheck = now - _lastPingCheck;
+ 	if (timeSinceLastPingCheck >= timeUntilNextPingCheck) {
+ 		try {
+@@ -402,6 +406,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Ping active peers, upstreams, and others that we should always contact
  			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
  			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
@@ -872,7 +929,7 @@ index 1f377c5..3c1ecde 100644
  
  			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
  			{
-@@ -554,6 +558,7 @@ void Node::status(ZT_NodeStatus *status) const
+@@ -554,6 +560,7 @@ void Node::status(ZT_NodeStatus *status) const
  	status->online = _online ? 1 : 0;
  }
  
@@ -880,22 +937,23 @@ index 1f377c5..3c1ecde 100644
  ZT_PeerList *Node::peers() const
  {
  	std::vector< std::pair< Address,SharedPtr<Peer> > > peers(RR->topology->allPeers());
-@@ -943,10 +948,11 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -943,10 +950,12 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
 -	volatile int64_t *nextBackgroundTaskDeadline)
 +	volatile int64_t *nextBackgroundTaskDeadline,
-+	bool isTCPPacket)
++	bool isTCPPacket,
++	bool isTCPRelaySendPacket)
  {
  	try {
 -		return reinterpret_cast<ZeroTier::Node *>(node)->processWirePacket(tptr,now,localSocket,remoteAddress,packetData,packetLength,nextBackgroundTaskDeadline);
-+		return reinterpret_cast<ZeroTier::Node *>(node)->processWirePacket(tptr,now,localSocket,remoteAddress,packetData,packetLength,nextBackgroundTaskDeadline,isTCPPacket);
++		return reinterpret_cast<ZeroTier::Node *>(node)->processWirePacket(tptr,now,localSocket,remoteAddress,packetData,packetLength,nextBackgroundTaskDeadline,isTCPPacket,isTCPRelaySendPacket);
  	} catch (std::bad_alloc &exc) {
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..df1bbbc 100644
+index f9d0548..bcdd805 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,8 @@
@@ -924,17 +982,18 @@ index f9d0548..df1bbbc 100644
  class World;
  
  /**
-@@ -71,7 +76,8 @@ public:
+@@ -71,7 +76,9 @@ public:
  		const struct sockaddr_storage *remoteAddress,
  		const void *packetData,
  		unsigned int packetLength,
 -		volatile int64_t *nextBackgroundTaskDeadline);
 +		volatile int64_t *nextBackgroundTaskDeadline,
-+		bool isTCPPacket);
++		bool isTCPPacket,
++		bool isTCPRelaySendPacket);
  	ZT_ResultCode processVirtualNetworkFrame(
  		void *tptr,
  		int64_t now,
-@@ -105,8 +111,9 @@ public:
+@@ -105,8 +112,9 @@ public:
  
  	inline int64_t now() const { return _now; }
  
@@ -945,7 +1004,7 @@ index f9d0548..df1bbbc 100644
  		return (_cb.wirePacketSendFunction(
  			reinterpret_cast<ZT_Node *>(this),
  			_uPtr,
-@@ -115,7 +122,8 @@ public:
+@@ -115,7 +123,8 @@ public:
  			reinterpret_cast<const struct sockaddr_storage *>(&addr),
  			data,
  			len,
@@ -955,7 +1014,7 @@ index f9d0548..df1bbbc 100644
  	}
  
  	inline void putFrame(void *tPtr,uint64_t nwid,void **nuptr,const MAC &source,const MAC &dest,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -163,6 +171,7 @@ public:
+@@ -163,6 +172,7 @@ public:
  		return nw;
  	}
  
@@ -963,7 +1022,7 @@ index f9d0548..df1bbbc 100644
  	inline std::vector<InetAddress> directPaths() const
  	{
  		Mutex::Lock _l(_directPaths_m);
-@@ -289,6 +298,16 @@ public:
+@@ -289,6 +299,16 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -980,7 +1039,7 @@ index f9d0548..df1bbbc 100644
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
-@@ -334,6 +353,8 @@ public:
+@@ -334,6 +354,8 @@ public:
  	volatile int64_t _prngState[2];
  	bool _online;
  	bool _lowBandwidthMode;
@@ -1032,30 +1091,32 @@ index 00ea90f..8e686ec 100644
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..5477d49 100644
+index d6167ce..a4c471f 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
-@@ -99,7 +99,8 @@ public:
+@@ -99,7 +99,9 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(),
 -		_ipScope(InetAddress::IP_SCOPE_NONE)
 +		_ipScope(InetAddress::IP_SCOPE_NONE),
-+		_isTCPPacket(false)
++		_isTCPPacket(false),
++		_isTCPRelaySendPacket(false)
  		{}
  
  	Path(const int64_t localSocket,const InetAddress &addr) :
-@@ -122,7 +123,8 @@ public:
+@@ -122,7 +124,9 @@ public:
  		_relativeQuality(0),
  		_latency(0xffff),
  		_addr(addr),
 -		_ipScope(addr.ipScope())
 +		_ipScope(addr.ipScope()),
-+		_isTCPPacket(false)
++		_isTCPPacket(false),
++	    _isTCPRelaySendPacket(false)
  	{}
  
  	/**
-@@ -150,7 +152,7 @@ public:
+@@ -150,7 +154,7 @@ public:
  	 * @param now Current time
  	 * @return True if transport reported success
  	 */
@@ -1064,7 +1125,19 @@ index d6167ce..5477d49 100644
  
  	/**
  	 * Manually update last sent time
-@@ -371,6 +373,12 @@ public:
+@@ -269,6 +273,11 @@ public:
+ 	 * @return True if this path is alive (receiving heartbeats)
+ 	 */
+ 	inline bool alive(const int64_t now) const {
++
++		if (isTCPRelaySendPacket()) {
++			return (now - _lastIn) < 5000;
++		}
++
+ 		return (now - _lastIn) < (ZT_PATH_HEARTBEAT_PERIOD + 5000);
+ 	}
+ 
+@@ -371,6 +380,18 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1074,15 +1147,22 @@ index d6167ce..5477d49 100644
 +	}
 +	
 +	inline void setTCPPacket(bool isTCPPacket) { _isTCPPacket = isTCPPacket; }
++	
++	inline bool isTCPRelaySendPacket() const {
++		return _isTCPRelaySendPacket;
++	}
++	
++	inline void setTCPRelaySendPacket(bool isTCPRelaySendPacket) { _isTCPRelaySendPacket = isTCPRelaySendPacket; }
  
  private:
  
-@@ -401,6 +409,8 @@ private:
+@@ -401,6 +422,9 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
 +	
 +	bool _isTCPPacket;
++	bool _isTCPRelaySendPacket;
  };
  
  } // namespace ZeroTier
@@ -1631,15 +1711,15 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..1c55012 100644
+index 7664f7a..60f920a 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
-@@ -74,13 +74,24 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
+@@ -74,13 +74,25 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
  	return false; // overflow == invalid
  }
  
 -void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len)
-+void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len,bool isTCPPacket)
++void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len,bool isTCPPacket,bool isTCPRelaySendPacket)
  {
  	int32_t flowId = ZT_QOS_NO_FLOW;
  	try {
@@ -1656,11 +1736,12 @@ index 7664f7a..1c55012 100644
 +		}
 +		
 +		path->setTCPPacket(isTCPPacket);
++		path->setTCPRelaySendPacket(isTCPRelaySendPacket);
 +		
  		path->received(now);
  
  		if (len == 13) {
-@@ -103,7 +114,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -103,7 +115,7 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					Packet outp(peer->address(),RR->identity.address(),Packet::VERB_NOP);
  					outp.armor(peer->key(),true,peer->aesKeysIfSupported());
  					Metrics::pkt_nop_out++;
@@ -1669,7 +1750,7 @@ index 7664f7a..1c55012 100644
  				}
  			}
  
-@@ -118,9 +129,16 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -118,9 +130,16 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					if ( (!RR->topology->amUpstream()) && (!path->trustEstablished(now)) ) {
  						return;
  					}
@@ -1686,7 +1767,7 @@ index 7664f7a..1c55012 100644
  
  						// Note: we don't bother initiating NAT-t for fragments, since heads will set that off.
  						// It wouldn't hurt anything, just redundant and unnecessary.
-@@ -197,6 +215,23 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
+@@ -197,6 +216,23 @@ void Switch::onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddre
  					}
  
  					Packet packet(data,len);
@@ -1710,7 +1791,7 @@ index 7664f7a..1c55012 100644
  
  					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
  						packet.incrementHops();
-@@ -968,7 +1003,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
+@@ -968,7 +1004,9 @@ void Switch::requestWhois(void *tPtr,const int64_t now,const Address &addr)
  		Packet outp(upstream->address(),RR->identity.address(),Packet::VERB_WHOIS);
  		addr.appendTo(outp);
  		send(tPtr,outp,true,flowId);
@@ -1721,7 +1802,7 @@ index 7664f7a..1c55012 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1187,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1150,7 +1188,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1730,7 +1811,7 @@ index 7664f7a..1c55012 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1197,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1198,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
@@ -1767,7 +1848,7 @@ index 7664f7a..1c55012 100644
  				remaining -= chunkSize;
  			}
 diff --git a/node/Switch.hpp b/node/Switch.hpp
-index 0fd9804..4be6d73 100644
+index 0fd9804..0402a75 100644
 --- a/node/Switch.hpp
 +++ b/node/Switch.hpp
 @@ -78,7 +78,7 @@ public:
@@ -1775,7 +1856,7 @@ index 0fd9804..4be6d73 100644
  	 * @param len Packet length
  	 */
 -	void onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len);
-+	void onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len,bool isTCPPacket);
++	void onRemotePacket(void *tPtr,const int64_t localSocket,const InetAddress &fromAddr,const void *data,unsigned int len,bool isTCPPacket,bool isTCPRelaySendPacket);
  
  	/**
  	 * Returns whether our bonding or balancing policy is aware of flows.
@@ -1868,7 +1949,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..535a1e5 100644
+index 594ff02..bd5ff80 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -1979,13 +2060,41 @@ index 594ff02..535a1e5 100644
  			}
  #endif
  
-@@ -1156,6 +1187,27 @@ public:
+@@ -1156,6 +1187,8 @@ public:
  						_node->orbit((void *)0,Utils::hexStrToU64(f->substr(0,dot).c_str()),0);
  				}
  			}
 +			
++			
+ 
+ 			// Main I/O loop
+ 			_nextBackgroundTaskDeadline = 0;
+@@ -1183,7 +1216,7 @@ public:
+ 
+ 				// Attempt to detect sleep/wake events by detecting delay overruns
+ 				bool restarted = false;
+-				if ((now > clockShouldBe)&&((now - clockShouldBe) > 10000)) {
++				if ((now > clockShouldBe)&&((now - clockShouldBe) > 5000)) {
+ 					_lastRestart = now;
+ 					restarted = true;
+ 				}
+@@ -1217,9 +1250,36 @@ public:
+ 						if (_node->online()) {
+ 							lastOnline = now;
+ 						}
+-						else if (now - lastOnline > (ZT_PEER_PING_PERIOD * 2) || restarted) {
++						else if (now - lastOnline > (ZT_PEER_PING_PERIOD * 4) || restarted) {
+ 							lastOnline = now;	// don't keep changing the port before we have a chance to connect
+ 							_ports[1] = _getRandomPort();
++							
++							
 +#ifdef ZT_TCP_FALLBACK_RELAY
-+		if(_allowTcpFallbackRelay && !_tcpFallbackTunnel) {
++							
++		if (_tcpFallbackTunnel) {
++			_phy.close(_tcpFallbackTunnel->sock);
++		}
++							
++		if(_allowTcpFallbackRelay) {
 +			const InetAddress addr(_fallbackRelayAddress);
 +			TcpConnection *tc = new TcpConnection();
 +			{
@@ -2003,20 +2112,11 @@ index 594ff02..535a1e5 100644
 +		}
 +		
 +#endif // ZT_TCP_FALLBACK_RELAY
-+			
++							
  
- 			// Main I/O loop
- 			_nextBackgroundTaskDeadline = 0;
-@@ -1183,7 +1235,7 @@ public:
- 
- 				// Attempt to detect sleep/wake events by detecting delay overruns
- 				bool restarted = false;
--				if ((now > clockShouldBe)&&((now - clockShouldBe) > 10000)) {
-+				if ((now > clockShouldBe)&&((now - clockShouldBe) > 5000)) {
- 					_lastRestart = now;
- 					restarted = true;
- 				}
-@@ -1262,6 +1314,8 @@ public:
+ #if ZT_DEBUG==1
+ 							fprintf(stderr, "Randomized secondary port. Now it's %d\n", _ports[1]);
+@@ -1262,6 +1322,8 @@ public:
  						}
  					}
  				}
@@ -2025,7 +2125,7 @@ index 594ff02..535a1e5 100644
  
  				// Run background task processor in core if it's time to do so
  				int64_t dl = _nextBackgroundTaskDeadline;
-@@ -1271,8 +1325,9 @@ public:
+@@ -1271,8 +1333,9 @@ public:
  				}
  
  				// Close TCP fallback tunnel if we have direct UDP
@@ -2036,7 +2136,7 @@ index 594ff02..535a1e5 100644
  				}
  
  				// Sync multicast group memberships
-@@ -2189,6 +2244,7 @@ public:
+@@ -2189,6 +2252,7 @@ public:
              json &settings = out["config"]["settings"];
              settings["allowTcpFallbackRelay"] = OSUtils::jsonBool(settings["allowTcpFallbackRelay"],_allowTcpFallbackRelay);
              settings["forceTcpRelay"] = OSUtils::jsonBool(settings["forceTcpRelay"],_forceTcpRelay);
@@ -2044,7 +2144,7 @@ index 594ff02..535a1e5 100644
              settings["primaryPort"] = OSUtils::jsonInt(settings["primaryPort"],(uint64_t)_primaryPort) & 0xffff;
              settings["secondaryPort"] = OSUtils::jsonInt(settings["secondaryPort"],(uint64_t)_ports[1]) & 0xffff;
              settings["tertiaryPort"] = OSUtils::jsonInt(settings["tertiaryPort"],(uint64_t)_tertiaryPort) & 0xffff;
-@@ -2572,6 +2628,93 @@ public:
+@@ -2572,6 +2636,93 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -2138,7 +2238,7 @@ index 594ff02..535a1e5 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2724,9 @@ public:
+@@ -2581,6 +2732,9 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2148,7 +2248,7 @@ index 594ff02..535a1e5 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2803,8 @@ public:
+@@ -2657,6 +2811,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2157,7 +2257,7 @@ index 594ff02..535a1e5 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3098,19 @@ public:
+@@ -2950,7 +3106,19 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2174,11 +2274,11 @@ index 594ff02..535a1e5 100644
 +		}
 +		
 +		// 来自udp的数据包(可能经过中继,另外的一端是tcp)
-+		const ZT_ResultCode rc = _node->processWirePacket(nullptr,now,reinterpret_cast<int64_t>(sock),reinterpret_cast<const struct sockaddr_storage *>(from),data,len,&_nextBackgroundTaskDeadline,isTCPPacket);
++		const ZT_ResultCode rc = _node->processWirePacket(nullptr,now,reinterpret_cast<int64_t>(sock),reinterpret_cast<const struct sockaddr_storage *>(from),data,len,&_nextBackgroundTaskDeadline,isTCPPacket,false);
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3137,17 @@ public:
+@@ -2977,10 +3145,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2198,7 +2298,7 @@ index 594ff02..535a1e5 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3190,7 @@ public:
+@@ -3023,6 +3198,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2206,7 +2306,7 @@ index 594ff02..535a1e5 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3229,7 @@ public:
+@@ -3061,7 +3237,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2215,7 +2315,7 @@ index 594ff02..535a1e5 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3264,13 @@ public:
+@@ -3096,7 +3272,13 @@ public:
  								}
  
  								if (from) {
@@ -2229,17 +2329,18 @@ index 594ff02..535a1e5 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3278,8 @@ public:
+@@ -3104,7 +3286,9 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
 -										&_nextBackgroundTaskDeadline);
 +										&_nextBackgroundTaskDeadline,
++										true,
 +										true);
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,85 +3787,202 @@ public:
+@@ -3612,85 +3796,214 @@ public:
  		return -1;
  	}
  
@@ -2253,6 +2354,7 @@ index 594ff02..535a1e5 100644
 +		const int64_t now = OSUtils::now();
 +		bool isPathAlive = path->alive(now);
 +		bool isTCPPath = path->isTCPPacket();
++		bool isTCPRelaySendPacket = path->isTCPRelaySendPacket();
 +		bool needsHeartbeat = path->needsHeartbeat(now);
 +		
 +		bool forceSend = false;
@@ -2279,7 +2381,6 @@ index 594ff02..535a1e5 100644
 +			isForceTCP = true;
 +		}
 +		
-+		
 +		bool result = -1;
 +		
 +		if (!_forceTcpRelay && !isForceTCP) {
@@ -2302,6 +2403,12 @@ index 594ff02..535a1e5 100644
 +			
  #ifdef ZT_TCP_FALLBACK_RELAY
 -		if(_allowTcpFallbackRelay) {
++			
++			bool needRestartTCPFallbackTunnel = false;
++			if (_tcpFallbackTunnel && (now - _lastSendToGlobalV4) < 5000 && (now - _tcpFallbackTunnel->lastReceive) > 15000) {
++				needRestartTCPFallbackTunnel = true;
++			}
++			
 +		if(_allowTcpFallbackRelay && (isTCPPath || forceUpLinkPacket)) {
  			if (addr->ss_family == AF_INET) {
  				// TCP fallback tunnel support, currently IPv4 only
@@ -2331,7 +2438,7 @@ index 594ff02..535a1e5 100644
 -									_tcpFallbackTunnel->writeq.append(reinterpret_cast<const char *>(reinterpret_cast<const void *>(&(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_port))),2);
 -									_tcpFallbackTunnel->writeq.append((const char *)data,len);
 +//					const int64_t now = OSUtils::now();
-+					if (_tcpFallbackTunnel) {
++					if (_tcpFallbackTunnel && !needRestartTCPFallbackTunnel) {
 +						bool flushNow = false;
 +						{
 +							Mutex::Lock _l(_tcpFallbackTunnel->writeq_m);
@@ -2432,6 +2539,12 @@ index 594ff02..535a1e5 100644
 +			bool returnResult = -1;
 +			
 +#ifdef ZT_TCP_FALLBACK_RELAY
++			
++		bool needRestartTCPFallbackTunnel = false;
++		if (_tcpFallbackTunnel && (now - _lastSendToGlobalV4) < 5000 && (now - _tcpFallbackTunnel->lastReceive) > 15000) {
++			needRestartTCPFallbackTunnel = true;
+ 		}
++			
 +		if(_allowTcpFallbackRelay) {
 +			if (addr->ss_family == AF_INET) {
 +				// TCP fallback tunnel support, currently IPv4 only
@@ -2440,7 +2553,7 @@ index 594ff02..535a1e5 100644
 +					// IP address in ZT_TCP_FALLBACK_AFTER milliseconds. If we do start getting
 +					// valid direct traffic we'll stop using it and close the socket after a while.
 +//					const int64_t now = OSUtils::now();
-+					if (_tcpFallbackTunnel) {
++					if (_tcpFallbackTunnel && !needRestartTCPFallbackTunnel) {
 +						bool flushNow = false;
 +						{
 +							Mutex::Lock _l(_tcpFallbackTunnel->writeq_m);
@@ -2491,7 +2604,7 @@ index 594ff02..535a1e5 100644
 +					_lastSendToGlobalV4 = now;
 +				}
 +			}
- 		}
++		}
 +		
 +#endif // ZT_TCP_FALLBACK_RELAY
 +			
@@ -2502,7 +2615,7 @@ index 594ff02..535a1e5 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4201,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4222,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
