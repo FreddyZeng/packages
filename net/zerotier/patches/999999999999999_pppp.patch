@@ -1936,9 +1936,18 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/node/Topology.hpp b/node/Topology.hpp
-index 53c2b6d..db49ec4 100644
+index 53c2b6d..32a45dc 100644
 --- a/node/Topology.hpp
 +++ b/node/Topology.hpp
+@@ -85,7 +85,7 @@ public:
+ 	 *
+ 	 * @param zta ZeroTier address
+ 	 */
+-	inline SharedPtr<Peer> getPeerNoCache(const Address &zta)
++	inline SharedPtr<Peer> getPeerNoCache(const Address &zta) const
+ 	{
+ 		Mutex::Lock _l(_peers_m);
+ 		const SharedPtr<Peer> *const ap = _peers.get(zta);
 @@ -187,6 +187,32 @@ public:
  			eps[m->second];
  		}
@@ -1955,7 +1964,7 @@ index 53c2b6d..db49ec4 100644
 +			
 +			bool hasUDPPacket = false;
 +			for(std::vector<SharedPtr<Path>>::const_iterator p(paths.begin());p!=paths.end();++p) {
-+				if ((*p)->isTCPPacket == false && (*p)->alive(now)) {
++				if ((*p)->isTCPPacket() == false && (*p)->alive(now)) {
 +					hasUDPPacket = true;
 +				}
 +			}
