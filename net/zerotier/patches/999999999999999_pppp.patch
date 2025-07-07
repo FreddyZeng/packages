@@ -1896,7 +1896,7 @@ index fc272ce..91fb136 100644
  			}
  		}
 diff --git a/node/Topology.hpp b/node/Topology.hpp
-index 53c2b6d..32a45dc 100644
+index 53c2b6d..d62f14b 100644
 --- a/node/Topology.hpp
 +++ b/node/Topology.hpp
 @@ -85,7 +85,7 @@ public:
@@ -1908,7 +1908,7 @@ index 53c2b6d..32a45dc 100644
  	{
  		Mutex::Lock _l(_peers_m);
  		const SharedPtr<Peer> *const ap = _peers.get(zta);
-@@ -187,6 +187,32 @@ public:
+@@ -187,6 +187,33 @@ public:
  			eps[m->second];
  		}
  	}
@@ -1929,7 +1929,8 @@ index 53c2b6d..32a45dc 100644
 +				}
 +			}
 +			
-+			if (hasUDPPacket) {
++			if (hasUDPPacket == false) {
++				// 没有活的udp的path的节点,需要持续跟踪
 +				for(std::vector<SharedPtr<Path>>::const_iterator p(paths.begin());p!=paths.end();++p) {
 +					
 +					std::vector<InetAddress> &ips = eps[peer->address()];
