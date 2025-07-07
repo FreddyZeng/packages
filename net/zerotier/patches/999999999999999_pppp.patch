@@ -232,7 +232,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..ba78127 100644
+index 95f093b..4ccf73d 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,7 +291,7 @@
@@ -253,6 +253,15 @@ index 95f093b..ba78127 100644
  
  /**
   * Do not accept HELLOs over a given path more often than this
+@@ -385,7 +385,7 @@
+ /**
+  * Delay between full-fledge pings of directly connected peers
+  */
+-#define ZT_PEER_PING_PERIOD 60000
++#define ZT_PEER_PING_PERIOD 15000
+ 
+ /**
+  * Paths are considered expired if they have not sent us a real packet in this long
 @@ -428,7 +428,7 @@
   * CUTOFF_LIMIT times per CUTOFF_TIME milliseconds per peer to prevent
   * this from being useful for DOS amplification attacks.
@@ -875,7 +884,7 @@ index 65e4c83..fe0e3b1 100644
  			}
  		}
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..4888b1b 100644
+index 1f377c5..2df1a9d 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
 @@ -211,10 +211,12 @@ ZT_ResultCode Node::processWirePacket(
@@ -920,7 +929,38 @@ index 1f377c5..4888b1b 100644
  	const int64_t timeSinceLastPingCheck = now - _lastPingCheck;
  	if (timeSinceLastPingCheck >= timeUntilNextPingCheck) {
  		try {
-@@ -402,6 +406,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+@@ -346,7 +350,29 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+ 			// Get designated VL1 upstreams
+ 			Hashtable< Address,std::vector<InetAddress> > alwaysContact;
+ 			RR->topology->getUpstreamsToContact(alwaysContact);
+-
++			
++			// 首先，调用函数并用一个变量存储返回的 vector
++			// 使用 const auto& 可以避免不必要的拷贝，非常高效
++			const auto allPeersVector = RR->topology->allPeers();
++
++			// 使用范围-for循环遍历 vector 中的每一个元素
++			// peer_entry 是对 vector 中每个 std::pair 的常量引用
++			for (const auto& peerEntry : allPeersVector)
++			{
++				// 从 pair 中获取 Address 和 Peer 智能指针
++//				const Address& addr = peerEntry.first;
++				const SharedPtr<Peer>& peerPtr = peerEntry.second;
++
++				// 最好检查一下智能指针是否有效（不为空）
++				if (peerPtr)
++				{
++					// 对于只有tcp连接的,添加到
++					RR->topology->getPeerToContact(peerPtr, alwaysContact);
++				}
++			}
++			
++			
++			
+ 			// Uncomment to dump stats
+ 			/*
+ 			for(unsigned int i=0;i<32;i++) {
+@@ -402,6 +428,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Ping active peers, upstreams, and others that we should always contact
  			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
  			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
@@ -929,7 +969,7 @@ index 1f377c5..4888b1b 100644
  
  			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
  			{
-@@ -554,6 +560,7 @@ void Node::status(ZT_NodeStatus *status) const
+@@ -554,6 +582,7 @@ void Node::status(ZT_NodeStatus *status) const
  	status->online = _online ? 1 : 0;
  }
  
@@ -937,7 +977,7 @@ index 1f377c5..4888b1b 100644
  ZT_PeerList *Node::peers() const
  {
  	std::vector< std::pair< Address,SharedPtr<Peer> > > peers(RR->topology->allPeers());
-@@ -943,10 +950,12 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -943,10 +972,12 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
@@ -1091,7 +1131,7 @@ index 00ea90f..8e686ec 100644
  		return true;
  	}
 diff --git a/node/Path.hpp b/node/Path.hpp
-index d6167ce..a4c471f 100644
+index d6167ce..b249e0c 100644
 --- a/node/Path.hpp
 +++ b/node/Path.hpp
 @@ -99,7 +99,9 @@ public:
@@ -1125,19 +1165,7 @@ index d6167ce..a4c471f 100644
  
  	/**
  	 * Manually update last sent time
-@@ -269,6 +273,11 @@ public:
- 	 * @return True if this path is alive (receiving heartbeats)
- 	 */
- 	inline bool alive(const int64_t now) const {
-+
-+		if (isTCPRelaySendPacket()) {
-+			return (now - _lastIn) < 5000;
-+		}
-+
- 		return (now - _lastIn) < (ZT_PATH_HEARTBEAT_PERIOD + 5000);
- 	}
- 
-@@ -371,6 +380,18 @@ public:
+@@ -371,6 +375,18 @@ public:
  	char *ifname() {
  		return _ifname;
  	}
@@ -1156,7 +1184,7 @@ index d6167ce..a4c471f 100644
  
  private:
  
-@@ -401,6 +422,9 @@ private:
+@@ -401,6 +417,9 @@ private:
  	InetAddress _addr;
  	InetAddress::IpScope _ipScope; // memoize this since it's a computed value checked often
  	AtomicCounter __refCount;
@@ -1907,6 +1935,43 @@ index fc272ce..91fb136 100644
  				}
  			}
  		}
+diff --git a/node/Topology.hpp b/node/Topology.hpp
+index 53c2b6d..db49ec4 100644
+--- a/node/Topology.hpp
++++ b/node/Topology.hpp
+@@ -187,6 +187,32 @@ public:
+ 			eps[m->second];
+ 		}
+ 	}
++	
++	inline void getPeerToContact(const Address &zta, Hashtable< Address,std::vector<InetAddress> > &eps) const
++	{
++		SharedPtr<Peer> peer = getPeerNoCache(zta);
++		
++		if (peer) {
++			uint64_t now = OSUtils::now();
++			
++			std::vector< SharedPtr<Path> > paths = peer->paths(now);
++			
++			bool hasUDPPacket = false;
++			for(std::vector<SharedPtr<Path>>::const_iterator p(paths.begin());p!=paths.end();++p) {
++				if ((*p)->isTCPPacket == false && (*p)->alive(now)) {
++					hasUDPPacket = true;
++				}
++			}
++			
++			if (hasUDPPacket) {
++				for(std::vector<SharedPtr<Path>>::const_iterator p(paths.begin());p!=paths.end();++p) {
++					
++					std::vector<InetAddress> &ips = eps[peer->address()];
++					ips.push_back((*p)->address());
++				}
++			}
++		}
++	}
+ 
+ 	/**
+ 	 * @return Vector of active upstream addresses (including roots)
 diff --git a/osdep/Binder.hpp b/osdep/Binder.hpp
 index 23e6393..d03879e 100644
 --- a/osdep/Binder.hpp
@@ -1949,7 +2014,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..bd5ff80 100644
+index 594ff02..0139c51 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2060,41 +2125,13 @@ index 594ff02..bd5ff80 100644
  			}
  #endif
  
-@@ -1156,6 +1187,8 @@ public:
+@@ -1156,6 +1187,27 @@ public:
  						_node->orbit((void *)0,Utils::hexStrToU64(f->substr(0,dot).c_str()),0);
  				}
  			}
 +			
-+			
- 
- 			// Main I/O loop
- 			_nextBackgroundTaskDeadline = 0;
-@@ -1183,7 +1216,7 @@ public:
- 
- 				// Attempt to detect sleep/wake events by detecting delay overruns
- 				bool restarted = false;
--				if ((now > clockShouldBe)&&((now - clockShouldBe) > 10000)) {
-+				if ((now > clockShouldBe)&&((now - clockShouldBe) > 5000)) {
- 					_lastRestart = now;
- 					restarted = true;
- 				}
-@@ -1217,9 +1250,36 @@ public:
- 						if (_node->online()) {
- 							lastOnline = now;
- 						}
--						else if (now - lastOnline > (ZT_PEER_PING_PERIOD * 2) || restarted) {
-+						else if (now - lastOnline > (ZT_PEER_PING_PERIOD * 4) || restarted) {
- 							lastOnline = now;	// don't keep changing the port before we have a chance to connect
- 							_ports[1] = _getRandomPort();
-+							
-+							
 +#ifdef ZT_TCP_FALLBACK_RELAY
-+							
-+		if (_tcpFallbackTunnel) {
-+			_phy.close(_tcpFallbackTunnel->sock);
-+		}
-+							
-+		if(_allowTcpFallbackRelay) {
++		if(_allowTcpFallbackRelay && !_tcpFallbackTunnel) {
 +			const InetAddress addr(_fallbackRelayAddress);
 +			TcpConnection *tc = new TcpConnection();
 +			{
@@ -2112,11 +2149,20 @@ index 594ff02..bd5ff80 100644
 +		}
 +		
 +#endif // ZT_TCP_FALLBACK_RELAY
-+							
++			
  
- #if ZT_DEBUG==1
- 							fprintf(stderr, "Randomized secondary port. Now it's %d\n", _ports[1]);
-@@ -1262,6 +1322,8 @@ public:
+ 			// Main I/O loop
+ 			_nextBackgroundTaskDeadline = 0;
+@@ -1183,7 +1235,7 @@ public:
+ 
+ 				// Attempt to detect sleep/wake events by detecting delay overruns
+ 				bool restarted = false;
+-				if ((now > clockShouldBe)&&((now - clockShouldBe) > 10000)) {
++				if ((now > clockShouldBe)&&((now - clockShouldBe) > 5000)) {
+ 					_lastRestart = now;
+ 					restarted = true;
+ 				}
+@@ -1262,6 +1314,8 @@ public:
  						}
  					}
  				}
@@ -2125,7 +2171,7 @@ index 594ff02..bd5ff80 100644
  
  				// Run background task processor in core if it's time to do so
  				int64_t dl = _nextBackgroundTaskDeadline;
-@@ -1271,8 +1333,9 @@ public:
+@@ -1271,8 +1325,9 @@ public:
  				}
  
  				// Close TCP fallback tunnel if we have direct UDP
@@ -2136,7 +2182,7 @@ index 594ff02..bd5ff80 100644
  				}
  
  				// Sync multicast group memberships
-@@ -2189,6 +2252,7 @@ public:
+@@ -2189,6 +2244,7 @@ public:
              json &settings = out["config"]["settings"];
              settings["allowTcpFallbackRelay"] = OSUtils::jsonBool(settings["allowTcpFallbackRelay"],_allowTcpFallbackRelay);
              settings["forceTcpRelay"] = OSUtils::jsonBool(settings["forceTcpRelay"],_forceTcpRelay);
@@ -2144,7 +2190,7 @@ index 594ff02..bd5ff80 100644
              settings["primaryPort"] = OSUtils::jsonInt(settings["primaryPort"],(uint64_t)_primaryPort) & 0xffff;
              settings["secondaryPort"] = OSUtils::jsonInt(settings["secondaryPort"],(uint64_t)_ports[1]) & 0xffff;
              settings["tertiaryPort"] = OSUtils::jsonInt(settings["tertiaryPort"],(uint64_t)_tertiaryPort) & 0xffff;
-@@ -2572,6 +2636,93 @@ public:
+@@ -2572,6 +2628,93 @@ public:
  			for (json::iterator peerItr = peerSpecificBonds.begin(); peerItr != peerSpecificBonds.end();++peerItr) {
  				_node->bondController()->assignBondingPolicyToPeer(std::stoull(peerItr.key(),0,16), peerItr.value());
  			}
@@ -2238,7 +2284,7 @@ index 594ff02..bd5ff80 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2732,9 @@ public:
+@@ -2581,6 +2724,9 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2248,7 +2294,7 @@ index 594ff02..bd5ff80 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2811,8 @@ public:
+@@ -2657,6 +2803,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2257,7 +2303,7 @@ index 594ff02..bd5ff80 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3106,19 @@ public:
+@@ -2950,7 +3098,19 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2278,7 +2324,7 @@ index 594ff02..bd5ff80 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3145,17 @@ public:
+@@ -2977,10 +3137,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2298,7 +2344,7 @@ index 594ff02..bd5ff80 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3198,7 @@ public:
+@@ -3023,6 +3190,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2306,7 +2352,7 @@ index 594ff02..bd5ff80 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3237,7 @@ public:
+@@ -3061,7 +3229,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2315,7 +2361,7 @@ index 594ff02..bd5ff80 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3272,13 @@ public:
+@@ -3096,7 +3264,13 @@ public:
  								}
  
  								if (from) {
@@ -2329,7 +2375,7 @@ index 594ff02..bd5ff80 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3286,9 @@ public:
+@@ -3104,7 +3278,9 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2340,7 +2386,7 @@ index 594ff02..bd5ff80 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,85 +3796,214 @@ public:
+@@ -3612,85 +3788,214 @@ public:
  		return -1;
  	}
  
@@ -2543,7 +2589,7 @@ index 594ff02..bd5ff80 100644
 +		bool needRestartTCPFallbackTunnel = false;
 +		if (_tcpFallbackTunnel && (now - _lastSendToGlobalV4) < 5000 && (now - _tcpFallbackTunnel->lastReceive) > 15000) {
 +			needRestartTCPFallbackTunnel = true;
- 		}
++		}
 +			
 +		if(_allowTcpFallbackRelay) {
 +			if (addr->ss_family == AF_INET) {
@@ -2604,7 +2650,7 @@ index 594ff02..bd5ff80 100644
 +					_lastSendToGlobalV4 = now;
 +				}
 +			}
-+		}
+ 		}
 +		
 +#endif // ZT_TCP_FALLBACK_RELAY
 +			
@@ -2615,7 +2661,7 @@ index 594ff02..bd5ff80 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4222,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4214,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
