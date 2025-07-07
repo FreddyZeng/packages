@@ -884,7 +884,7 @@ index 65e4c83..fe0e3b1 100644
  			}
  		}
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..2df1a9d 100644
+index 1f377c5..dabce27 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
 @@ -211,10 +211,12 @@ ZT_ResultCode Node::processWirePacket(
@@ -951,7 +951,7 @@ index 1f377c5..2df1a9d 100644
 +				if (peerPtr)
 +				{
 +					// 对于只有tcp连接的,添加到
-+					RR->topology->getPeerToContact(peerPtr, alwaysContact);
++					RR->topology->getPeerToContact(peerPtr->address(), alwaysContact);
 +				}
 +			}
 +			
