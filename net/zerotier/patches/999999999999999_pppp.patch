@@ -232,7 +232,7 @@ index 410ad72..e3f16ce 100644
   * A combined Curve25519 ECDH and Ed25519 signature engine
   */
 diff --git a/node/Constants.hpp b/node/Constants.hpp
-index 95f093b..4ccf73d 100644
+index 95f093b..ba78127 100644
 --- a/node/Constants.hpp
 +++ b/node/Constants.hpp
 @@ -291,7 +291,7 @@
@@ -253,15 +253,6 @@ index 95f093b..4ccf73d 100644
  
  /**
   * Do not accept HELLOs over a given path more often than this
-@@ -385,7 +385,7 @@
- /**
-  * Delay between full-fledge pings of directly connected peers
-  */
--#define ZT_PEER_PING_PERIOD 60000
-+#define ZT_PEER_PING_PERIOD 15000
- 
- /**
-  * Paths are considered expired if they have not sent us a real packet in this long
 @@ -428,7 +428,7 @@
   * CUTOFF_LIMIT times per CUTOFF_TIME milliseconds per peer to prevent
   * this from being useful for DOS amplification attacks.
