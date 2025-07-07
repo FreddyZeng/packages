@@ -844,7 +844,7 @@ index 1643487..4299f8f 100644
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
 diff --git a/node/Node.cpp b/node/Node.cpp
-index 1f377c5..dabce27 100644
+index 1f377c5..a1a80f9 100644
 --- a/node/Node.cpp
 +++ b/node/Node.cpp
 @@ -211,10 +211,12 @@ ZT_ResultCode Node::processWirePacket(
@@ -889,29 +889,31 @@ index 1f377c5..dabce27 100644
  	const int64_t timeSinceLastPingCheck = now - _lastPingCheck;
  	if (timeSinceLastPingCheck >= timeUntilNextPingCheck) {
  		try {
-@@ -346,7 +350,29 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+@@ -346,7 +350,31 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Get designated VL1 upstreams
  			Hashtable< Address,std::vector<InetAddress> > alwaysContact;
  			RR->topology->getUpstreamsToContact(alwaysContact);
 -
 +			
-+			// 首先，调用函数并用一个变量存储返回的 vector
-+			// 使用 const auto& 可以避免不必要的拷贝，非常高效
-+			const auto allPeersVector = RR->topology->allPeers();
++			if (!_forceTcpRelay) {
++				// 首先，调用函数并用一个变量存储返回的 vector
++				// 使用 const auto& 可以避免不必要的拷贝，非常高效
++				const auto allPeersVector = RR->topology->allPeers();
 +
-+			// 使用范围-for循环遍历 vector 中的每一个元素
-+			// peer_entry 是对 vector 中每个 std::pair 的常量引用
-+			for (const auto& peerEntry : allPeersVector)
-+			{
-+				// 从 pair 中获取 Address 和 Peer 智能指针
-+//				const Address& addr = peerEntry.first;
-+				const SharedPtr<Peer>& peerPtr = peerEntry.second;
-+
-+				// 最好检查一下智能指针是否有效（不为空）
-+				if (peerPtr)
++				// 使用范围-for循环遍历 vector 中的每一个元素
++				// peer_entry 是对 vector 中每个 std::pair 的常量引用
++				for (const auto& peerEntry : allPeersVector)
 +				{
-+					// 对于只有tcp连接的,添加到
-+					RR->topology->getPeerToContact(peerPtr->address(), alwaysContact);
++					// 从 pair 中获取 Address 和 Peer 智能指针
++	//				const Address& addr = peerEntry.first;
++					const SharedPtr<Peer>& peerPtr = peerEntry.second;
++
++					// 最好检查一下智能指针是否有效（不为空）
++					if (peerPtr)
++					{
++						// 对于只有tcp连接的,添加到
++						RR->topology->getPeerToContact(peerPtr->address(), alwaysContact);
++					}
 +				}
 +			}
 +			
@@ -920,7 +922,7 @@ index 1f377c5..dabce27 100644
  			// Uncomment to dump stats
  			/*
  			for(unsigned int i=0;i<32;i++) {
-@@ -402,6 +428,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
+@@ -402,6 +430,8 @@ ZT_ResultCode Node::processBackgroundTasks(void *tptr,int64_t now,volatile int64
  			// Ping active peers, upstreams, and others that we should always contact
  			_PingPeersThatNeedPing pfunc(RR,tptr,alwaysContact,now);
  			RR->topology->eachPeer<_PingPeersThatNeedPing &>(pfunc);
@@ -929,7 +931,7 @@ index 1f377c5..dabce27 100644
  
  			// Run WHOIS to create Peer for alwaysContact addresses that could not be contacted
  			{
-@@ -554,6 +582,7 @@ void Node::status(ZT_NodeStatus *status) const
+@@ -554,6 +584,7 @@ void Node::status(ZT_NodeStatus *status) const
  	status->online = _online ? 1 : 0;
  }
  
@@ -937,7 +939,7 @@ index 1f377c5..dabce27 100644
  ZT_PeerList *Node::peers() const
  {
  	std::vector< std::pair< Address,SharedPtr<Peer> > > peers(RR->topology->allPeers());
-@@ -943,10 +972,12 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
+@@ -943,10 +974,12 @@ enum ZT_ResultCode ZT_Node_processWirePacket(
  	const struct sockaddr_storage *remoteAddress,
  	const void *packetData,
  	unsigned int packetLength,
@@ -953,7 +955,7 @@ index 1f377c5..dabce27 100644
  		return ZT_RESULT_FATAL_ERROR_OUT_OF_MEMORY;
  	} catch ( ... ) {
 diff --git a/node/Node.hpp b/node/Node.hpp
-index f9d0548..bcdd805 100644
+index f9d0548..2cc60b3 100644
 --- a/node/Node.hpp
 +++ b/node/Node.hpp
 @@ -17,6 +17,8 @@
@@ -1022,7 +1024,7 @@ index f9d0548..bcdd805 100644
  	inline std::vector<InetAddress> directPaths() const
  	{
  		Mutex::Lock _l(_directPaths_m);
-@@ -289,6 +299,16 @@ public:
+@@ -289,6 +299,18 @@ public:
  public:
  	RuntimeEnvironment _RR;
  	RuntimeEnvironment *RR;
@@ -1035,11 +1037,13 @@ index f9d0548..bcdd805 100644
 +    std::unordered_set<ZeroTier::PubKeyBin, ZeroTier::PubKeyHash> _planetPubKeyBinKeys;
 +	
 +	std::unordered_set<std::uint32_t> _TCPRelayIPs;
++	
++	bool _forceTcpRelay;
 +
  	void *_uPtr; // _uptr (lower case) is reserved in Visual Studio :P
  	ZT_Node_Callbacks _cb;
  
-@@ -334,6 +354,8 @@ public:
+@@ -334,6 +356,8 @@ public:
  	volatile int64_t _prngState[2];
  	bool _online;
  	bool _lowBandwidthMode;
@@ -1984,7 +1988,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..c8d2394 100644
+index 594ff02..972592f 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2254,7 +2258,7 @@ index 594ff02..c8d2394 100644
  			// Check settings
  			if (defaultBondingPolicyStr.length() && !defaultBondingPolicy && !_node->bondController()->inUse()) {
  				fprintf(stderr, "error: unknown policy (%s) specified by defaultBondingPolicy, bond disabled.\n", defaultBondingPolicyStr.c_str());
-@@ -2581,6 +2724,9 @@ public:
+@@ -2581,11 +2724,16 @@ public:
  		// bondingPolicy cannot be used with allowTcpFallbackRelay
  		bool _forceTcpRelayTmp = (OSUtils::jsonBool(settings["forceTcpRelay"],false));
  		bool _bondInUse = _node->bondController()->inUse();
@@ -2264,7 +2268,14 @@ index 594ff02..c8d2394 100644
  		if (_forceTcpRelayTmp && _bondInUse) {
  			fprintf(stderr, "Warning: forceTcpRelay cannot be used with multipath. Disabling forceTcpRelay\n");
  		}
-@@ -2657,6 +2803,8 @@ public:
+ 		_allowTcpFallbackRelay = (OSUtils::jsonBool(settings["allowTcpFallbackRelay"],true) && !_node->bondController()->inUse());
+ 		_forceTcpRelay = (_forceTcpRelayTmp && !_node->bondController()->inUse());
++		_node->_forceTcpRelay = _forceTcpRelay;
++		
+ 		_enableWebServer = (OSUtils::jsonBool(settings["enableWebServer"],false));
+ 
+ #ifdef ZT_TCP_FALLBACK_RELAY
+@@ -2657,6 +2805,8 @@ public:
  					_allowManagementFrom.push_back(nw);
  			}
  		}
@@ -2273,7 +2284,7 @@ index 594ff02..c8d2394 100644
  	}
  
  #if ZT_VAULT_SUPPORT
-@@ -2950,7 +3098,19 @@ public:
+@@ -2950,7 +3100,19 @@ public:
  		if ((len >= 16) && (reinterpret_cast<const InetAddress*>(from)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
  			_lastDirectReceiveFromGlobal = now;
  		}
@@ -2294,7 +2305,7 @@ index 594ff02..c8d2394 100644
  		if (ZT_ResultCode_isFatal(rc)) {
  			char tmp[256];
  			OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -2977,10 +3137,17 @@ public:
+@@ -2977,10 +3139,17 @@ public:
  		tc->sock = sock;
  
  		if (tc->type == TcpConnection::TCP_TUNNEL_OUTGOING) {
@@ -2314,7 +2325,7 @@ index 594ff02..c8d2394 100644
  		} else {
  			_phy.close(sock,true);
  		}
-@@ -3023,6 +3190,7 @@ public:
+@@ -3023,6 +3192,7 @@ public:
  		TcpConnection *tc = (TcpConnection *)*uptr;
  		if (tc) {
  			if (tc == _tcpFallbackTunnel) {
@@ -2322,7 +2333,7 @@ index 594ff02..c8d2394 100644
  				_tcpFallbackTunnel = (TcpConnection *)0;
  			}
  			{
-@@ -3061,7 +3229,7 @@ public:
+@@ -3061,7 +3231,7 @@ public:
  
  						unsigned long plen = mlen; // payload length, modified if there's an IP header
  							data += 5; // skip forward past pseudo-TLS junk and mlen
@@ -2331,7 +2342,7 @@ index 594ff02..c8d2394 100644
  								// Hello message, which isn't sent by proxy and would be ignored by client
  							} else if (plen) {
  								// Messages should contain IPv4 or IPv6 source IP address data
-@@ -3096,7 +3264,13 @@ public:
+@@ -3096,7 +3266,13 @@ public:
  								}
  
  								if (from) {
@@ -2345,7 +2356,7 @@ index 594ff02..c8d2394 100644
  									const ZT_ResultCode rc = _node->processWirePacket(
  										(void *)0,
  										OSUtils::now(),
-@@ -3104,7 +3278,9 @@ public:
+@@ -3104,7 +3280,9 @@ public:
  										reinterpret_cast<struct sockaddr_storage *>(&from),
  										data,
  										plen,
@@ -2356,7 +2367,7 @@ index 594ff02..c8d2394 100644
  									if (ZT_ResultCode_isFatal(rc)) {
  										char tmp[256];
  										OSUtils::ztsnprintf(tmp,sizeof(tmp),"fatal error code from processWirePacket: %d",(int)rc);
-@@ -3612,85 +3788,214 @@ public:
+@@ -3612,85 +3790,214 @@ public:
  		return -1;
  	}
  
@@ -2631,7 +2642,7 @@ index 594ff02..c8d2394 100644
  	}
  
  	inline void nodeVirtualNetworkFrameFunction(uint64_t nwid,void **nuptr,uint64_t sourceMac,uint64_t destMac,unsigned int etherType,unsigned int vlanId,const void *data,unsigned int len)
-@@ -3909,8 +4214,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
+@@ -3909,8 +4216,11 @@ static void SnodeStatePutFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_St
  { reinterpret_cast<OneServiceImpl *>(uptr)->nodeStatePutFunction(type,id,data,len); }
  static int SnodeStateGetFunction(ZT_Node *node,void *uptr,void *tptr,enum ZT_StateObjectType type,const uint64_t id[2],void *data,unsigned int maxlen)
  { return reinterpret_cast<OneServiceImpl *>(uptr)->nodeStateGetFunction(type,id,data,maxlen); }
