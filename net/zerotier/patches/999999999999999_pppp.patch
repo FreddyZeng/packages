@@ -843,37 +843,6 @@ index 1643487..4299f8f 100644
  		if (_config) {
  			Membership *m = _memberships.get(peer->address());
  			//if (m) {
-diff --git a/node/NetworkConfig.hpp b/node/NetworkConfig.hpp
-index 65e4c83..fe0e3b1 100644
---- a/node/NetworkConfig.hpp
-+++ b/node/NetworkConfig.hpp
-@@ -433,7 +433,7 @@ public:
- 	{
- 		std::vector<Address> r;
- 		for(unsigned int i=0;i<specialistCount;++i) {
--			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
-+			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
- 				r.push_back(Address(specialists[i]));
- 			}
- 		}
-@@ -444,7 +444,7 @@ public:
- 	{
- 		unsigned int c = 0;
- 		for(unsigned int i=0;i<specialistCount;++i) {
--			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
-+			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
- 				ac[c++] = specialists[i];
- 			}
- 		}
-@@ -454,7 +454,7 @@ public:
- 	inline void alwaysContactAddresses(Hashtable< Address,std::vector<InetAddress> > &a) const
- 	{
- 		for(unsigned int i=0;i<specialistCount;++i) {
--			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR)) != 0) {
-+			if ((specialists[i] & (ZT_NETWORKCONFIG_SPECIALIST_TYPE_ANCHOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_MULTICAST_REPLICATOR | ZT_NETWORKCONFIG_SPECIALIST_TYPE_ACTIVE_BRIDGE)) != 0) {
- 				a[Address(specialists[i])];
- 			}
- 		}
 diff --git a/node/Node.cpp b/node/Node.cpp
 index 1f377c5..dabce27 100644
 --- a/node/Node.cpp
