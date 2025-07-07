@@ -1984,7 +1984,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..5e702a2 100644
+index 594ff02..c8d2394 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2369,8 +2369,8 @@ index 594ff02..5e702a2 100644
 +
 +		const int64_t now = OSUtils::now();
 +		bool isPathAlive = path->alive(now);
-+		bool isTCPPath = path->isTCPPacket();
-+		bool isTCPRelaySendPacket = path->isTCPRelaySendPacket();
++		bool isTCPPath = path->isTCPPacket(); // udp接收方向的tcp, 经过 relay或者planet的数据包
++		bool isTCPRelaySendPacket = path->isTCPRelaySendPacket(); // tcp发送的方向
 +		bool needsHeartbeat = path->needsHeartbeat(now);
 +		
 +		bool forceSend = false;
@@ -2425,7 +2425,7 @@ index 594ff02..5e702a2 100644
 +				needRestartTCPFallbackTunnel = true;
 +			}
 +			
-+		if(_allowTcpFallbackRelay && (isTCPPath || forceUpLinkPacket)) {
++		if(_allowTcpFallbackRelay && isTCPRelaySendPacket) {
  			if (addr->ss_family == AF_INET) {
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
