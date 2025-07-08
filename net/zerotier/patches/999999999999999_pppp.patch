@@ -1988,7 +1988,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..7243d6f 100644
+index 594ff02..bdc4075 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2410,7 +2410,7 @@ index 594ff02..7243d6f 100644
 +		
 +		bool result = -1;
 +		
-+		if (!_forceTcpRelay && !isForceTCP && !isTCPRelaySendPacket) {
++		if (!_forceTcpRelay && !isForceTCP) {
 +			// Even when relaying we still send via UDP. This way if UDP starts
 +			// working we can instantly "fail forward" to it and stop using TCP
 +			// proxy fallback, which is slow.
@@ -2670,7 +2670,7 @@ index c14ce27..8036526 100644
  clean:
  	rm -f *.o tcp-proxy *.dSYM
 diff --git a/tcp-proxy/tcp-proxy.cpp b/tcp-proxy/tcp-proxy.cpp
-index 44bc5ea..ec42785 100644
+index 44bc5ea..6cf2fbc 100644
 --- a/tcp-proxy/tcp-proxy.cpp
 +++ b/tcp-proxy/tcp-proxy.cpp
 @@ -19,12 +19,21 @@
@@ -2710,12 +2710,19 @@ index 44bc5ea..ec42785 100644
  
  using namespace ZeroTier;
  
-@@ -211,7 +220,7 @@ struct TcpProxyService
+@@ -211,7 +220,14 @@ struct TcpProxyService
  			if (c.tcpReadPtr >= 5) {
  				unsigned long mlen = ( ((((unsigned long)c.tcpReadBuf[3]) & 0xff) << 8) | (((unsigned long)c.tcpReadBuf[4]) & 0xff) );
  				if (c.tcpReadPtr >= (mlen + 5)) {
 -					if (mlen == 4) {
-+					if (mlen == 4 || mlen == 6) {
++					if (mlen == 6) {
++						
++						if (memcmp(c.tcpReadBuf + 9, "\x91\x5E", 2) != 0) {
++							// 不是合法的连接
++							phy->close(sock);
++							return;
++						}
++						
  						// Right now just sending this means the client is 'new enough' for the IP header
  						c.newVersion = true;
  						printf("<< TCP %.16llx HELLO\n",(unsigned long long)*uptr);
