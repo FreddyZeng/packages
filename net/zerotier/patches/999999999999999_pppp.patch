@@ -1988,7 +1988,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..7243d6f 100644
+index 594ff02..0b197eb 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2436,7 +2436,7 @@ index 594ff02..7243d6f 100644
 +				needRestartTCPFallbackTunnel = true;
 +			}
 +			
-+		if(_allowTcpFallbackRelay && result == -1) {
++		if(_allowTcpFallbackRelay && (result == -1 || needRestartTCPFallbackTunnel)) {
  			if (addr->ss_family == AF_INET) {
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
