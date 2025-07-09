@@ -1159,7 +1159,7 @@ index d6167ce..b249e0c 100644
  
  } // namespace ZeroTier
 diff --git a/node/Peer.cpp b/node/Peer.cpp
-index f77b4e6..e617afb 100644
+index f77b4e6..b89eaa5 100644
 --- a/node/Peer.cpp
 +++ b/node/Peer.cpp
 @@ -11,6 +11,8 @@
@@ -1426,7 +1426,7 @@ index f77b4e6..e617afb 100644
 +	for(unsigned int i = 0; i < ZT_MAX_PEER_NETWORK_PATHS; ++i) {
 +		if (_paths[i].p) {
 +			// 路径必须是活跃的(或允许包含过期的)，并且不能是TCP路径
-+			if ((includeExpired || ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) && !_paths[i].p->isTCPPacket()) {
++			if (includeExpired || ((now - _paths[i].lr) < ZT_PEER_PATH_EXPIRATION)) {
 +				// 使用与原始代码完全相同的逻辑计算质量
 +				const long q = _paths[i].p->quality(now) / _paths[i].priority;
 +				// 将路径指针和计算出的质量一起添加到临时列表中
@@ -1703,7 +1703,7 @@ index dab19c6..eae01e9 100644
  }
  
 diff --git a/node/Switch.cpp b/node/Switch.cpp
-index 7664f7a..60f920a 100644
+index 7664f7a..2d8cb8e 100644
 --- a/node/Switch.cpp
 +++ b/node/Switch.cpp
 @@ -74,13 +74,25 @@ static bool _ipv6GetPayload(const uint8_t *frameData,unsigned int frameLen,unsig
@@ -1720,12 +1720,12 @@ index 7664f7a..60f920a 100644
 +		// 记录来自udp的包和tcp的包
  		const SharedPtr<Path> path(RR->topology->getPath(localSocket,fromAddr));
 +		
-+		bool needIntroduce = false;
-+		
-+		if (path->latency() == 0xffff || path->alive(now) == false) {
-+			// 第一次路径接受到数据, 或者不活跃了
-+			needIntroduce = true;
-+		}
++//		bool needIntroduce = false;
++//		
++//		if (path->latency() == 0xffff || path->alive(now) == false) {
++//			// 第一次路径接受到数据, 或者不活跃了
++//			needIntroduce = true;
++//		}
 +		
 +		path->setTCPPacket(isTCPPacket);
 +		path->setTCPRelaySendPacket(isTCPRelaySendPacket);
@@ -1764,21 +1764,21 @@ index 7664f7a..60f920a 100644
  
  					Packet packet(data,len);
 +					
-+					Packet::Verb verb = packet.verb();
-+					bool forceSend = false;
-+					
-+					if (verb == Packet::VERB_HELLO ||
-+						verb == Packet::VERB_ERROR ||
-+						verb == Packet::VERB_WHOIS ||
-+						verb == Packet::VERB_RENDEZVOUS ||
-+						verb == Packet::VERB_PUSH_DIRECT_PATHS ||
-+						verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
-+						verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
-+						verb == Packet::VERB_NETWORK_CONFIG ||
-+						verb == Packet::VERB_NETWORK_CREDENTIALS) {
-+						
-+						forceSend = true;
-+					}
++//					Packet::Verb verb = packet.verb();
++//					bool forceSend = false;
++//					
++//					if (verb == Packet::VERB_HELLO ||
++//						verb == Packet::VERB_ERROR ||
++//						verb == Packet::VERB_WHOIS ||
++//						verb == Packet::VERB_RENDEZVOUS ||
++//						verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++//						verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++//						verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++//						verb == Packet::VERB_NETWORK_CONFIG ||
++//						verb == Packet::VERB_NETWORK_CREDENTIALS) {
++//						
++//						forceSend = true;
++//					}
 +					
  
  					if (packet.hops() < ZT_RELAY_MAX_HOPS) {
@@ -1794,7 +1794,60 @@ index 7664f7a..60f920a 100644
  }
  
  void Switch::doAnythingWaitingForPeer(void *tPtr,const SharedPtr<Peer> &peer)
-@@ -1150,7 +1188,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1107,6 +1145,7 @@ bool Switch::_trySend(void *tPtr,Packet &packet,bool encrypt,int32_t flowId)
+ 			}
+ 			return true;
+ 		} else {
++//			bool didGetUpstreamPeerPath = false;
+ 			viaPath = peer->getAppropriatePath(now,false,flowId);
+ 			if (!viaPath) {
+ 				peer->tryMemorizedPath(tPtr,now); // periodically attempt memorized or statically defined paths, if any are known
+@@ -1116,7 +1155,44 @@ bool Switch::_trySend(void *tPtr,Packet &packet,bool encrypt,int32_t flowId)
+ 						return false;
+ 					}
+ 				}
++//				didGetUpstreamPeerPath = true;
+ 			}
++			
++//			if (viaPath->isTCPPacket() && didGetUpstreamPeerPath == false) {
++//				// 即使有path, 如果是tcp的path. 并且没有获取到根节点的path. 那么需要向根节点发送数据
++//				Packet::Verb verb = packet.verb();
++//				bool forceSend = false;
++//				
++//				if (verb == Packet::VERB_HELLO ||
++//					verb == Packet::VERB_ERROR ||
++//					verb == Packet::VERB_WHOIS ||
++//					verb == Packet::VERB_RENDEZVOUS ||
++//					verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++//					verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++//					verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++//					verb == Packet::VERB_NETWORK_CONFIG ||
++//					verb == Packet::VERB_NETWORK_CREDENTIALS) {
++//					
++//					forceSend = true;
++//				}
++//				
++//				if (forceSend) {
++//					SharedPtr<Path> viaUpstreamPeerPath;
++//					
++//					peer->tryMemorizedPath(tPtr,now); // periodically attempt memorized or statically defined paths, if any are known
++//					const SharedPtr<Peer> relay(RR->topology->getUpstreamPeer());
++//					
++//					if (relay) {
++//						viaUpstreamPeerPath = relay->getAppropriatePath(now,false,flowId)
++//						
++//						if (viaUpstreamPeerPath) {
++//							uint16_t userSpecifiedMtu = viaUpstreamPeerPath->mtu();
++//							_sendViaSpecificPath(tPtr,peer,viaUpstreamPeerPath,userSpecifiedMtu,now,packet,encrypt,flowId);
++//						}
++//					}
++//				}
++//			}
++			
+ 			if (viaPath) {
+ 				uint16_t userSpecifiedMtu = viaPath->mtu();
+ 				_sendViaSpecificPath(tPtr,peer,viaPath,userSpecifiedMtu,now,packet,encrypt,flowId);
+@@ -1150,7 +1226,7 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  
  	peer->recordOutgoingPacket(viaPath, packet.packetId(), packet.payloadLength(), packet.verb(), flowId, now);
  
@@ -1803,7 +1856,7 @@ index 7664f7a..60f920a 100644
  		if (chunkSize < packet.size()) {
  			// Too big for one packet, fragment the rest
  			unsigned int fragStart = chunkSize;
-@@ -1160,11 +1198,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
+@@ -1160,11 +1236,34 @@ void Switch::_sendViaSpecificPath(void *tPtr,SharedPtr<Peer> peer,SharedPtr<Path
  				++fragsRemaining;
  			}
  			const unsigned int totalFragments = fragsRemaining + 1;
@@ -1988,7 +2041,7 @@ index 14cf92c..98e8c88 100644
  	/**
  	 * Return the local port corresponding to this PhySocket
 diff --git a/service/OneService.cpp b/service/OneService.cpp
-index 594ff02..bdc4075 100644
+index 594ff02..78f0862 100644
 --- a/service/OneService.cpp
 +++ b/service/OneService.cpp
 @@ -47,6 +47,7 @@
@@ -2379,27 +2432,27 @@ index 594ff02..bdc4075 100644
 +		const SharedPtr<Path> path(_node->RR->topology->getPath(localSocket,inetAddrPtr));
 +
 +		const int64_t now = OSUtils::now();
-+//		bool isPathAlive = path->alive(now);
++		bool isPathAlive = path->alive(now);
 +//		bool isTCPPath = path->isTCPPacket(); // udp接收方向的tcp, 经过 relay或者planet的数据包
 +		bool isTCPRelaySendPacket = path->isTCPRelaySendPacket(); // tcp发送的方向
 +//		bool needsHeartbeat = path->needsHeartbeat(now);
 +		
-+//		bool forceSend = false;
-+//		
-+//		if (verb == Packet::VERB_HELLO ||
-+//			verb == Packet::VERB_ERROR ||
-+//			verb == Packet::VERB_WHOIS ||
-+//			verb == Packet::VERB_RENDEZVOUS ||
-+//			verb == Packet::VERB_PUSH_DIRECT_PATHS ||
-+//			verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
-+//			verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
-+//			verb == Packet::VERB_NETWORK_CONFIG ||
-+//			verb == Packet::VERB_NETWORK_CREDENTIALS) {
-+//			
-+//			forceSend = true;
-+//		}
++		bool forceSend = false;
 +		
-+//		bool forceUpLinkPacket = ((needsHeartbeat || !isPathAlive) && forceSend);
++		if (verb == Packet::VERB_HELLO ||
++			verb == Packet::VERB_ERROR ||
++			verb == Packet::VERB_WHOIS ||
++			verb == Packet::VERB_RENDEZVOUS ||
++			verb == Packet::VERB_PUSH_DIRECT_PATHS ||
++			verb == Packet::VERB_PATH_NEGOTIATION_REQUEST ||
++			verb == Packet::VERB_NETWORK_CONFIG_REQUEST ||
++			verb == Packet::VERB_NETWORK_CONFIG ||
++			verb == Packet::VERB_NETWORK_CREDENTIALS) {
++			
++			forceSend = true;
++		}
++		
++		bool forceUpLinkPacket = (!isPathAlive && forceSend);
 +		
 +		
 +		bool isForceTCP = false;
@@ -2436,7 +2489,7 @@ index 594ff02..bdc4075 100644
 +				needRestartTCPFallbackTunnel = true;
 +			}
 +			
-+		if(_allowTcpFallbackRelay && result == -1) {
++		if(_allowTcpFallbackRelay && (result == -1 || forceUpLinkPacket)) {
  			if (addr->ss_family == AF_INET) {
  				// TCP fallback tunnel support, currently IPv4 only
  				if ((len >= 16)&&(reinterpret_cast<const InetAddress *>(addr)->ipScope() == InetAddress::IP_SCOPE_GLOBAL)) {
@@ -2570,7 +2623,7 @@ index 594ff02..bdc4075 100644
 +		bool needRestartTCPFallbackTunnel = false;
 +		if (_tcpFallbackTunnel && (now - _lastSendToGlobalV4) < 5000 && (now - _tcpFallbackTunnel->lastReceive) > 35000) {
 +			needRestartTCPFallbackTunnel = true;
- 		}
++		}
 +			
 +		if(_allowTcpFallbackRelay) {
 +			if (addr->ss_family == AF_INET) {
@@ -2631,7 +2684,7 @@ index 594ff02..bdc4075 100644
 +					_lastSendToGlobalV4 = now;
 +				}
 +			}
-+		}
+ 		}
 +		
 +#endif // ZT_TCP_FALLBACK_RELAY
 +			
