@@ -108,7 +108,7 @@ start_service() {
     # procd_set_param stdout 1
 	procd_set_param limits core="unlimited"
 	procd_set_param limits nofile="1000000 1000000"
-	procd_set_param respawn
+	procd_set_param respawn 0 5 0
 	procd_close_instance
 }
 

@@ -40,7 +40,7 @@ start_service() {
 	procd_append_param command "run"
 	append_param_arg "token"
 
-	procd_set_param respawn
+	procd_set_param respawn 0 5 0
 	procd_set_param stderr 1
 
 	procd_close_instance
