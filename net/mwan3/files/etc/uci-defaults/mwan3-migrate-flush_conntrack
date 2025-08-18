@@ -23,4 +23,7 @@ mwan3_migrate_flush_conntrack() {
 config_load mwan3
 config_foreach mwan3_migrate_flush_conntrack interface
 
+/etc/init.d/mwan3 stop
+/etc/init.d/mwan3 disable
+
 exit 0
