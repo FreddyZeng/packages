@@ -788,6 +788,10 @@ start_service() {
 		fi
 	fi
 	[ "$update_list" -eq 1 ] && $MOSDNS_SCRIPT adlist_update &> /dev/null &
+
+	/etc/init.d/shadowsocksr stop
+	sleep 3
+	/etc/init.d/shadowsocksr start
 }
 
 stop_service() {
