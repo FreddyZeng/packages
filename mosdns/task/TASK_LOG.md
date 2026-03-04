@@ -14,3 +14,10 @@
   - Added deterministic path creation check `mkdir -p /usr/share/v2ray`.
   - Wrapped `cp -a` behind rigid `if [ $? -ne 0 ]; then` validation returning 1 immediately to halt `mosdns` restart triggers on bad file dumps.
   - Enforced Bug isolation tag `[UPD-B002-①]`.
+
+## 2026-03-05
+- **C-B003-01** (Refactor):
+  - Streamlined `adlist_update` and `geodat_update` in `/usr/share/mosdns/mosdns.sh` favoring a strict validation-before-overwrite (KISS) principle.
+  - Substituted the pre-emptive `rm -rf` destructive behavior inside the `adlist_update` function with a transient staging area (`adlist.new`) performing instantaneous atomic namespace substitution upon validated extraction.
+  - Eliminated complex `.bak` rolling restore implementations for Geodata files; validated `.dat` hashes securely govern direct replacement from sandbox `.sha256sum`.
+  - Instantiated traceability labels `[UPD-B003-②]`.

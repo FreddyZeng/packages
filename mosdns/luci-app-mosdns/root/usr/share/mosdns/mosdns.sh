@@ -94,9 +94,15 @@ adlist_update() {
         exit 1
     else
         [ $has_update -eq 1 ] && {
-            mkdir -p /etc/mosdns/rule/adlist
-            rm -rf /etc/mosdns/rule/adlist/*
-            \cp $AD_TMPDIR/* /etc/mosdns/rule/adlist
+            mkdir -p /etc/mosdns/rule/adlist.new
+            \cp -a "$AD_TMPDIR"/* /etc/mosdns/rule/adlist.new/
+            if [ $? -eq 0 ]; then
+                [ -d /etc/mosdns/rule/adlist ] && rm -rf /etc/mosdns/rule/adlist
+                mv /etc/mosdns/rule/adlist.new /etc/mosdns/rule/adlist
+            else
+                echo -e "[UPD-B003-②] ⚠️ Failed to copy adlist files."
+                rm -rf /etc/mosdns/rule/adlist.new
+            fi
         }
     fi
     rm -rf "$AD_TMPDIR" "$lock_file"
