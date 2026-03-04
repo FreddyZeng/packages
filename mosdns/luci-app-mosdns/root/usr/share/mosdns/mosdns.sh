@@ -109,11 +109,19 @@ geodat_update() (
     geoip_type=$(uci -q get mosdns.config.geoip_type || echo "geoip-only-cn-private")
     echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat"
     curl --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geoip.dat" ""$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat"
-    [ $? -ne 0 ] && rm -rf "$TMPDIR" && exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "[UPD-B001-②] ⚠️ geoip.dat download failed."
+        rm -rf "$TMPDIR"
+        exit 1
+    fi
     # checksum - geoip.dat
     echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat.sha256sum"
     curl --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geoip.dat.sha256sum" ""$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat.sha256sum"
-    [ $? -ne 0 ] && rm -rf "$TMPDIR" && exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "[UPD-B001-③] ⚠️ geoip.dat.sha256sum download failed."
+        rm -rf "$TMPDIR"
+        exit 1
+    fi
     if [ "$(sha256sum "$TMPDIR/geoip.dat" | awk '{print $1}')" != "$(cat "$TMPDIR/geoip.dat.sha256sum" | awk '{print $1}')" ]; then
         echo -e "\e[1;31mgeoip.dat checksum error"
         rm -rf "$TMPDIR"
@@ -123,11 +131,19 @@ geodat_update() (
     # geosite.dat
     echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
     curl --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geosite.dat" ""$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
-    [ $? -ne 0 ] && rm -rf "$TMPDIR" && exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "[UPD-B001-④] ⚠️ geosite.dat download failed."
+        rm -rf "$TMPDIR"
+        exit 1
+    fi
     # checksum - geosite.dat
     echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat.sha256sum"
     curl --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geosite.dat.sha256sum" ""$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat.sha256sum"
-    [ $? -ne 0 ] && rm -rf "$TMPDIR" && exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "[UPD-B001-⑤] ⚠️ geosite.dat.sha256sum download failed."
+        rm -rf "$TMPDIR"
+        exit 1
+    fi
     if [ "$(sha256sum "$TMPDIR/geosite.dat" | awk '{print $1}')" != "$(cat "$TMPDIR/geosite.dat.sha256sum" | awk '{print $1}')" ]; then
         echo -e "\e[1;31mgeosite.dat checksum error"
         rm -rf "$TMPDIR"

@@ -756,6 +756,14 @@ start_service() {
 	fi
 	[ "${CONF}" = "/var/etc/mosdns.json" ] && generate_config
 
+	# Ensure essential geo databases exist before starting to prevent respawn loops
+	if [ "${CONF}" = "/var/etc/mosdns.json" ]; then
+		if [ ! -s "/var/mosdns/geoip_cn.txt" ] || [ ! -s "/var/mosdns/geosite_cn.txt" ]; then
+			echo "[INIT-B001-①] ❌ Error - GeoIP/GeoSite data missing or empty. Aborting start to prevent respawn loop." >> $($MOSDNS_SCRIPT logfile)
+			return 1
+		fi
+	fi
+
 	procd_open_instance mosdns
 	procd_set_param limits nofile 65535 65535
 	procd_set_param env QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING=true
