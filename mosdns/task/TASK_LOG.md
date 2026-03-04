@@ -8,3 +8,9 @@
   - Implemented diagnostic log tags such as `[INIT-B001-①]`.
   - Replaced unresilient short-circuits (`&& rm -rf && exit`) in `/usr/share/mosdns/mosdns.sh` with solid deterministic `if...then` traps preventing unhandled downloads.
   - Addressed R9 strict adherence. Assigned BID. Created B-001 bug schema for future maintainers.
+
+- **C-B002-01** (Bug Fix):
+  - Fixed an unhandled vulnerability during dat geodata installation pointing to `/usr/share/v2ray/`.
+  - Added deterministic path creation check `mkdir -p /usr/share/v2ray`.
+  - Wrapped `cp -a` behind rigid `if [ $? -ne 0 ]; then` validation returning 1 immediately to halt `mosdns` restart triggers on bad file dumps.
+  - Enforced Bug isolation tag `[UPD-B002-①]`.

@@ -150,7 +150,13 @@ geodat_update() (
         exit 1
     fi
     rm -rf "$TMPDIR"/*.sha256sum
+    mkdir -p /usr/share/v2ray
     \cp -a "$TMPDIR"/* /usr/share/v2ray
+    if [ $? -ne 0 ]; then
+        echo -e "[UPD-B002-①] ⚠️ Failed to copy dat files to /usr/share/v2ray"
+        rm -rf "$TMPDIR"
+        exit 1
+    fi
     rm -rf "$TMPDIR"
 )
 
