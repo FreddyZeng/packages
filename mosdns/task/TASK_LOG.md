@@ -36,3 +36,10 @@
   - Re-implemented highly portable, `grep`-free `awk` filtering on `nslookup` output within `get_curl_resolve_args()` inside `/usr/share/mosdns/mosdns.sh` to extract pure IPv4 addresses.
   - Configured `mosdns.sh` to hardcode the resolving DNS server to `119.29.29.29`, bypassing any LUCI UI elements per user instruction.
   - Dynamically injected `--resolve HOST:PORT:IP` instructions into down-stream `curl` processes fetching GitHub repositories.
+
+- **C-F007-01** (Feature):
+  - Addressed F-007: Specify Custom DNS Server for SSR+ `update.lua`.
+  - Injected `get_curl_command()` lua function into `/usr/share/shadowsocksr/update.lua`.
+  - Replaced native `wget` execution with a dynamically formatted `curl --resolve` string.
+  - Mirrored the F-006 `nslookup` + `awk` technique using Lua's `io.popen()` to fetch the target IPv4 of the URL against `119.29.29.29`.
+  - Ensured reliable routing list downloads directly overriding SSR+ active port hijackings.
