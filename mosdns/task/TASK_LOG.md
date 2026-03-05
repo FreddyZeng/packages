@@ -43,3 +43,8 @@
   - Replaced native `wget` execution with a dynamically formatted `curl --resolve` string.
   - Mirrored the F-006 `nslookup` + `awk` technique using Lua's `io.popen()` to fetch the target IPv4 of the URL against `119.29.29.29`.
   - Ensured reliable routing list downloads directly overriding SSR+ active port hijackings.
+
+- **C-F006-02** (Fix):
+  - Addressed F-006: Enforce strict hardcode DNS fallback in `/usr/share/mosdns/mosdns.sh`.
+  - Upgraded `get_curl_resolve_args()` to output `--resolve HOST:PORT:119.29.29.29` explicitly if the primary `awk` IP extraction yields empty.
+  - Aligned with SSR+ `update.lua` logic, ensuring no proxy DNS leak can occur under failure conditions.

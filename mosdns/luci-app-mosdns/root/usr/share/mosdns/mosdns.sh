@@ -37,6 +37,8 @@ get_curl_resolve_args() {
     ')
     if [ -n "$ip" ]; then
         echo "--resolve $domain:443:$ip --resolve $domain:80:$ip"
+    else
+        echo "--resolve $domain:443:119.29.29.29 --resolve $domain:80:119.29.29.29"
     fi
 }
 

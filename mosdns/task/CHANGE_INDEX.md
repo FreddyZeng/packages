@@ -7,4 +7,5 @@
 | C-B003-01 | Refactor | update | Implement atomic switch mechanism for AdList and Geodata ensuring replacement only on download/validation success | B-003 | 2026-03-05 |
 | C-B004-01 | Fix | update | Implement Shadow-folder atomic switches via rename syscall for geodata to prevent power-loss corruption | B-004 | 2026-03-05 |
 | C-F006-01 | Feat | update | Add custom DNS resolution via hardcoded 119.29.29.29 for robust geodata/adlist downloads, bypassing proxy DNS collisions | F-006 | 2026-03-05 |
+| C-F006-02 | Fix | update | Enforce strict hardcode DNS fallback in get_curl_resolve_args if awk fails, fully preventing proxy resolution leaks | F-006 | 2026-03-05 |
 | C-F007-01 | Feat | ssr+ update | Apply MosDNS nslookup DNS hardcoding logic (119.29.29.29) into SSR+ update.lua replacing wget with curl --resolve. | F-007 | 2026-03-05 |
