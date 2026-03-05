@@ -156,14 +156,17 @@ geodat_update() (
         exit 1
     fi
     rm -rf "$TMPDIR"/*.sha256sum
-    mkdir -p /usr/share/v2ray
-    \cp -a "$TMPDIR"/* /usr/share/v2ray
+    mkdir -p /usr/share/v2ray_tmp
+    \cp -a "$TMPDIR"/* /usr/share/v2ray_tmp/
     if [ $? -ne 0 ]; then
-        echo -e "[UPD-B002-①] ⚠️ Failed to copy dat files to /usr/share/v2ray"
-        rm -rf "$TMPDIR"
+        echo -e "[UPD-B004-①] ⚠️ Failed to copy dat files to /usr/share/v2ray_tmp"
+        rm -rf "$TMPDIR" /usr/share/v2ray_tmp
         exit 1
     fi
-    rm -rf "$TMPDIR"
+    mkdir -p /usr/share/v2ray
+    mv -f /usr/share/v2ray_tmp/geoip.dat /usr/share/v2ray/geoip.dat
+    mv -f /usr/share/v2ray_tmp/geosite.dat /usr/share/v2ray/geosite.dat
+    rm -rf "$TMPDIR" /usr/share/v2ray_tmp
 )
 
 restart_service() {

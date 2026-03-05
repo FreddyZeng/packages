@@ -21,3 +21,10 @@
   - Substituted the pre-emptive `rm -rf` destructive behavior inside the `adlist_update` function with a transient staging area (`adlist.new`) performing instantaneous atomic namespace substitution upon validated extraction.
   - Eliminated complex `.bak` rolling restore implementations for Geodata files; validated `.dat` hashes securely govern direct replacement from sandbox `.sha256sum`.
   - Instantiated traceability labels `[UPD-B003-②]`.
+
+- **C-B004-01** (Bug Fix):
+  - Addressed the fatal flaw of updating databases over multiple filesystems which caused power-loss corruption.
+  - Implemented shadow-folder atomic switch mechanism (`mv -f /usr/share/v2ray_tmp/* /usr/share/v2ray/`) to utilize atomic `rename(2)` within the same physical partition (overlayfs).
+  - Ensured that cross-filesystem `cp` from tmpfs (`/tmp`) only targets the shadow temporary folder, completely shielding the live directory.
+  - Generated diagnostics tracing tag `[UPD-B004-①]`.
+  - Created B-004.md schema to govern root cause modeling.
