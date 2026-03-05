@@ -237,8 +237,6 @@ define Host/Install
 	$(call GoCompiler/Host/Install/Bin,)
 	$(call GoCompiler/Host/Install/Src,)
 
-	$(call GoCompiler/Host/Install/BinLinks,)
-
 	rm -rf "$(HOST_GO_ROOT)/pkg/$(GO_HOST_OS_ARCH)$(if $(HOST_GO_INSTALL_SUFFIX),_$(HOST_GO_INSTALL_SUFFIX))"
 
 	$(INSTALL_DIR) "$(HOST_GO_ROOT)/openwrt"
@@ -249,8 +247,6 @@ endef
 
 define Host/Uninstall
 	rm -rf "$(HOST_GO_ROOT)/openwrt"
-
-	$(call GoCompiler/Host/Uninstall/BinLinks,)
 
 	$(call GoCompiler/Host/Uninstall,)
 endef
