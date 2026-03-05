@@ -20,6 +20,26 @@ clean_logfile() {
     true > $(logfile_path);
 }
 
+get_curl_resolve_args() {
+    local url="$1"
+    local dns_server="119.29.29.29"
+    local domain=$(echo "$url" | awk -F/ '{print $3}')
+    [ -z "$domain" ] && return
+    local ip=$(nslookup "$domain" "$dns_server" 2>/dev/null | awk -v dns="$dns_server" '
+        /Address/ {
+            for(i=1; i<=NF; i++) {
+                if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $i != dns && $i != "127.0.0.1" && $i != "0.0.0.0") {
+                    ip=$i
+                }
+            }
+        }
+        END { print ip }
+    ')
+    if [ -n "$ip" ]; then
+        echo "--resolve $domain:443:$ip --resolve $domain:80:$ip"
+    fi
+}
+
 interface_dns() (
     if [ "$(uci -q get mosdns.config.custom_local_dns)" = 1 ]; then
         uci -q get mosdns.config.local_dns
@@ -84,8 +104,10 @@ adlist_update() {
             else
                 mirror=""
             fi
-            echo -e "Downloading $mirror$url"
-            curl --connect-timeout 5 -m 90 --ipv4 -kfSLo "$AD_TMPDIR/$filename" "$mirror$url"
+            local full_url="$mirror$url"
+            local resolve_args=$(get_curl_resolve_args "$full_url")
+            echo -e "Downloading $full_url"
+            curl $resolve_args --connect-timeout 5 -m 90 --ipv4 -kfSLo "$AD_TMPDIR/$filename" "$full_url"
         fi
     done
     if [ $? -ne 0 ]; then
@@ -113,16 +135,20 @@ geodat_update() (
     [ -n "$(uci -q get mosdns.config.github_proxy)" ] && mirror="$(uci -q get mosdns.config.github_proxy)/"
     # geoip.dat - cn-private
     geoip_type=$(uci -q get mosdns.config.geoip_type || echo "geoip-only-cn-private")
-    echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat"
-    curl --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geoip.dat" ""$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat"
+    local geoip_url="${mirror}https://github.com/Loyalsoldier/geoip/releases/latest/download/${geoip_type}.dat"
+    local geoip_args=$(get_curl_resolve_args "$geoip_url")
+    echo -e "Downloading $geoip_url"
+    curl $geoip_args --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geoip.dat" "$geoip_url"
     if [ $? -ne 0 ]; then
         echo -e "[UPD-B001-②] ⚠️ geoip.dat download failed."
         rm -rf "$TMPDIR"
         exit 1
     fi
     # checksum - geoip.dat
-    echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat.sha256sum"
-    curl --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geoip.dat.sha256sum" ""$mirror"https://github.com/Loyalsoldier/geoip/releases/latest/download/"$geoip_type".dat.sha256sum"
+    local geosum_url="${mirror}https://github.com/Loyalsoldier/geoip/releases/latest/download/${geoip_type}.dat.sha256sum"
+    local geosum_args=$(get_curl_resolve_args "$geosum_url")
+    echo -e "Downloading $geosum_url"
+    curl $geosum_args --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geoip.dat.sha256sum" "$geosum_url"
     if [ $? -ne 0 ]; then
         echo -e "[UPD-B001-③] ⚠️ geoip.dat.sha256sum download failed."
         rm -rf "$TMPDIR"
@@ -135,16 +161,20 @@ geodat_update() (
     fi
 
     # geosite.dat
-    echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
-    curl --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geosite.dat" ""$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
+    local geosite_url="${mirror}https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
+    local geosite_args=$(get_curl_resolve_args "$geosite_url")
+    echo -e "Downloading $geosite_url"
+    curl $geosite_args --connect-timeout 5 -m 120 --ipv4 -kfSLo "$TMPDIR/geosite.dat" "$geosite_url"
     if [ $? -ne 0 ]; then
         echo -e "[UPD-B001-④] ⚠️ geosite.dat download failed."
         rm -rf "$TMPDIR"
         exit 1
     fi
     # checksum - geosite.dat
-    echo -e "Downloading "$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat.sha256sum"
-    curl --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geosite.dat.sha256sum" ""$mirror"https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat.sha256sum"
+    local geositesum_url="${mirror}https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat.sha256sum"
+    local geositesum_args=$(get_curl_resolve_args "$geositesum_url")
+    echo -e "Downloading $geositesum_url"
+    curl $geositesum_args --connect-timeout 5 -m 20 --ipv4 -kfSLo "$TMPDIR/geosite.dat.sha256sum" "$geositesum_url"
     if [ $? -ne 0 ]; then
         echo -e "[UPD-B001-⑤] ⚠️ geosite.dat.sha256sum download failed."
         rm -rf "$TMPDIR"

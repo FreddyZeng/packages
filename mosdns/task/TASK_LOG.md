@@ -28,3 +28,11 @@
   - Ensured that cross-filesystem `cp` from tmpfs (`/tmp`) only targets the shadow temporary folder, completely shielding the live directory.
   - Generated diagnostics tracing tag `[UPD-B004-①]`.
   - Created B-004.md schema to govern root cause modeling.
+
+- **C-F006-01** (Feature):
+  - Addressed F-006: User requirement to specify a custom DNS server exclusively for MosDNS geodata/adlist `curl` updates.
+  - Mitigated proxy lookup collision by avoiding reliance on the default OpenWrt resolver.
+  - Encountered OpenWrt `libcurl` limitations (absence of `--dns-servers` and `--doh-url` support on embedded builds).
+  - Re-implemented highly portable, `grep`-free `awk` filtering on `nslookup` output within `get_curl_resolve_args()` inside `/usr/share/mosdns/mosdns.sh` to extract pure IPv4 addresses.
+  - Configured `mosdns.sh` to hardcode the resolving DNS server to `119.29.29.29`, bypassing any LUCI UI elements per user instruction.
+  - Dynamically injected `--resolve HOST:PORT:IP` instructions into down-stream `curl` processes fetching GitHub repositories.
