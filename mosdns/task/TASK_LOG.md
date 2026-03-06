@@ -67,3 +67,12 @@
   - Replaced it with local filesystem copy operations: `$(CP) ./files/geoip.dat $(PKG_BUILD_DIR)/`, physically moving the pre-provided `.dat` binaries into the working directory.
   - Placed the payload `geoip.dat` and `geosite.dat` securely inside `packages/net/v2ray-geodata/files/`.
   - Result: `make package/net/v2ray-geodata/compile` no longer touches the internet. It instantly packages the provided static assets into `v2ray-geoip` and `v2ray-geosite`. Downstream dependents like `luci-app-mosdns` can keep their `LUCI_DEPENDS` completely intact and will link exactly the local assets as intended without opkg collisions.
+
+- **C-B006-01** (Bug Fix):
+  - Addressed OpenWrt startup race condition where SSR+ (`S99shadowsocksr`) initializes its iptables firewall routing before MosDNS (`S90mosdns`) has finished loading `geosite.dat` and binding UDP port 5335.
+  - Modified `mosdns` STOP variable to 16 to maintain symmetric teardown execution ordering (LIFO shutdown constraint).
+  - Drafted and ultimately **rejected** a dual-polling `boot()` override in `S90mosdns` that asynchronously issued `/etc/init.d/shadowsocksr restart` due to fatal Time-Gap race condition vulnerabilities against the imminent `S99` execution.
+  - Enforced a rigorous `wait_for_mosdns` readiness probe directly inside the `start()` function of `/etc/init.d/shadowsocksr`.
+  - Probe logic polls OpenWrt `netstat -unlp` / `netstat -tlnp` every 1 second (up to 60 seconds) strictly asserting the `/mosdns` binary has acquired its network socket before relinquishing execution flow back to the SSR initializer.
+  - Implemented POSIX resilient `$((i + 1))` arithmetic syntax, averting `let i++` crashes on minimalist Ash shell environments.
+  - Linked Tracking BUG B-006. Diagnostic tagging applied: `[INIT-B006-①~④]`.
