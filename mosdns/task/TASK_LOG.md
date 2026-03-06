@@ -48,3 +48,22 @@
   - Addressed F-006: Enforce strict hardcode DNS fallback in `/usr/share/mosdns/mosdns.sh`.
   - Upgraded `get_curl_resolve_args()` to output `--resolve HOST:PORT:119.29.29.29` explicitly if the primary `awk` IP extraction yields empty.
   - Aligned with SSR+ `update.lua` logic, ensuring no proxy DNS leak can occur under failure conditions.
+
+## 2026-03-06
+- **C-B005-01** (Bug Fix):
+  - Analyzed compilation failure observed in `10_编译固件.txt`.
+  - Identified the root cause as a data file clash. Package `luci-app-mosdns` attempted to install bundled `/usr/share/v2ray/geoip.dat` and `geosite.dat` directly from its `root` directory while its `Makefile` paradoxically registered explicit dependencies on `v2ray-geoip` and `v2ray-geosite`. This resulted in opkg triggering `check_data_file_clashes` during rootfs assembly.
+  - Mitigated the conflict by recursively eliminating the redundant bundled static dat assets (`rm -rf root/usr/share/v2ray`) from the `luci-app-mosdns` packaging manifest folder.
+  - Documented as B-005. Restoration allows the build chain to resume unaffected.
+
+- **C-B005-02** (Reverted):
+  - User requested retaining the architectural integrity of `+v2ray-geoip` and `+v2ray-geosite` dependencies in `luci-app-mosdns/Makefile`. Therefore, embedding files directly inside `luci-app-mosdns` and deleting the LUCI_DEPENDS edge is rejected. Restored `luci-app-mosdns/Makefile` to its previous state.
+
+- **C-B005-03** (Refactor):
+  - Addressed user requirement: "Retain `v2ray-geodata` system integration, but eliminate all Github downloads during compilation, injecting static dat files directly."
+  - Target: `packages/net/v2ray-geodata/Makefile`.
+  - Stripped out all `define Download/geoip` and `define Download/geosite` blocks.
+  - Removed `$(call Download,geoip)` execution from `Build/Prepare`.
+  - Replaced it with local filesystem copy operations: `$(CP) ./files/geoip.dat $(PKG_BUILD_DIR)/`, physically moving the pre-provided `.dat` binaries into the working directory.
+  - Placed the payload `geoip.dat` and `geosite.dat` securely inside `packages/net/v2ray-geodata/files/`.
+  - Result: `make package/net/v2ray-geodata/compile` no longer touches the internet. It instantly packages the provided static assets into `v2ray-geoip` and `v2ray-geosite`. Downstream dependents like `luci-app-mosdns` can keep their `LUCI_DEPENDS` completely intact and will link exactly the local assets as intended without opkg collisions.
