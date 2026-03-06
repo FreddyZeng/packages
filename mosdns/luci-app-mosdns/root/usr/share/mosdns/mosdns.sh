@@ -35,11 +35,36 @@ get_curl_resolve_args() {
         }
         END { print ip }
     ')
+    
+    local resolve_str=""
     if [ -n "$ip" ]; then
-        echo "--resolve $domain:443:$ip --resolve $domain:80:$ip"
+        resolve_str="--resolve $domain:443:$ip --resolve $domain:80:$ip"
     else
-        echo "--resolve $domain:443:119.29.29.29 --resolve $domain:80:119.29.29.29"
+        resolve_str="--resolve $domain:443:119.29.29.29 --resolve $domain:80:119.29.29.29"
     fi
+
+    # [B-002-Fix] Resolve GitHub redirect domains to prevent curl timeout
+    if [ "$domain" = "github.com" ] || [ "$domain" = "raw.githubusercontent.com" ]; then
+        local extra_domains="release-assets.githubusercontent.com objects.githubusercontent.com"
+        for ed in $extra_domains; do
+            local e_ip=$(nslookup "$ed" "$dns_server" 2>/dev/null | awk -v dns="$dns_server" '
+                /Address/ {
+                    for(i=1; i<=NF; i++) {
+                        if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $i != dns && $i != "127.0.0.1" && $i != "0.0.0.0") {
+                            ip=$i
+                        }
+                    }
+                }
+                END { print ip }
+            ')
+            if [ -n "$e_ip" ]; then
+                resolve_str="$resolve_str --resolve $ed:443:$e_ip --resolve $ed:80:$e_ip"
+            else
+                resolve_str="$resolve_str --resolve $ed:443:119.29.29.29 --resolve $ed:80:119.29.29.29"
+            fi
+        done
+    fi
+    echo "$resolve_str"
 }
 
 interface_dns() (
