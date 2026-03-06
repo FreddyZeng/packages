@@ -19,8 +19,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-START=99
-STOP=14
+START=90
+STOP=16
 USE_PROCD=1
 
 PROG=/usr/bin/mosdns
@@ -749,6 +749,7 @@ start_service() {
 	[ $enabled -ne 1 ] && return 1
 	delcron ; setcron
 	:> $($MOSDNS_SCRIPT logfile)
+	echo "[INIT-B006-①] mosdns service starting (START=90) to ensure DNS is ready before Proxy" >> $($MOSDNS_SCRIPT logfile)
 	if [ "${log_level}" = "error" ] || [ "${log_level}" = "warn" ]; then
 		v2dat_dump > /dev/null 2>&1
 	else
