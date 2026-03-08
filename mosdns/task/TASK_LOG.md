@@ -76,3 +76,11 @@
   - Probe logic polls OpenWrt `netstat -unlp` / `netstat -tlnp` every 1 second (up to 60 seconds) strictly asserting the `/mosdns` binary has acquired its network socket before relinquishing execution flow back to the SSR initializer.
   - Implemented POSIX resilient `$((i + 1))` arithmetic syntax, averting `let i++` crashes on minimalist Ash shell environments.
   - Linked Tracking BUG B-006. Diagnostic tagging applied: `[INIT-B006-①~④]`.
+
+## 2026-03-08
+- **C-F008-01** (Feature):
+  - Addressed F-008: Modify MosDNS default package configurations for hands-free maintenance.
+  - Activated `geo_auto_update` flag within `/etc/config/mosdns` from '0' to '1'.
+  - Reprogrammed `geo_update_week_time` wildcard to '6' signifying Saturday alignment for minimal interference.
+  - Shifted `geo_update_day_time` constraint to '4' mapping the execution precisely to 04:00 AM.
+  - Validated UCI mappings accurately instantiate native OpenWrt crontab daemon directives via MosDNS `setcron()` initialization hook.

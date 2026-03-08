@@ -12,3 +12,4 @@
 | C-B005-01 | Fix | Makefile/Packaging | Remove pre-packaged v2ray .dat files in luci-app-mosdns to prevent opkg clashing | B-005 | 2026-03-06 |
 | C-B005-03 | Refactor | Makefile/Packaging | Rewrite `v2ray-geodata` to directly embed local static dat files instead of downloading from Github, fully eliminating fetch dependency during OpenWrt compilation while retaining `luci-app-mosdns` integration | B-005 | 2026-03-06 |
 | C-B006-01 | Fix | init.d | Resolve startup race condition strictly enforcing MosDNS port readiness before SSR+ initialization via `wait_for_mosdns` probe | B-006 | 2026-03-06 |
+| C-F008-01 | Feat | config | Enable automated geodata updates by default scheduling them for Saturday 04:00 AM via native OpenWrt cron hook | F-008 | 2026-03-08 |
