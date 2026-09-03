@@ -6,6 +6,10 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build:
     name: Test ${{ matrix.arch }}
@@ -46,7 +50,7 @@ jobs:
             target: mpc85xx-p1010
             runtime_test: false
 
-          - arch: riscv64_riscv64
+          - arch: riscv64_generic
             target: sifiveu-generic
             runtime_test: false
 
@@ -55,7 +59,7 @@ jobs:
             runtime_test: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -91,8 +95,16 @@ jobs:
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
 
+      - name: Remove unused Android SDK, .NET, Swift, GHC
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/share/swift
+
       - name: Generate OPKG build keys
         run: |
+          sudo rm -rf /var/lib/man-db/auto-update
           sudo apt-get update
           sudo apt-get install -y signify-openbsd
           signify-openbsd -G -n -c 'DO NOT USE - OpenWrt packages feed CI' -p packages_ci.pub -s packages_ci.sec
@@ -111,7 +123,7 @@ jobs:
           echo "$EOF" >> $GITHUB_ENV
 
       - name: Build
-        uses: immortalwrt/gh-action-sdk@v7
+        uses: immortalwrt/gh-action-sdk@v8
         env:
           ARCH: ${{ matrix.arch }}-${{ env.BRANCH }}
           FEEDNAME: packages_ci
@@ -126,7 +138,7 @@ jobs:
 
       - name: Store packages
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.arch}}-${{ github.sha}}-packages
           path: |
@@ -138,7 +150,7 @@ jobs:
 
       - name: Store logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.arch}}-${{ github.sha}}-logs
           path: logs/

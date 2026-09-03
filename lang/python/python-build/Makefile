@@ -8,15 +8,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-build
-PKG_VERSION:=1.0.3
+PKG_VERSION:=1.5.0
 PKG_RELEASE:=1
 
 PYPI_NAME:=build
-PKG_HASH:=538aab1b64f9828977f84bc63ae570b060a8ed1be419e7870b8b4fc5e6ea553b
+PKG_HASH:=302c22c3ba2a0fd5f3911918651341ebb3896176cbdec15bd421f80b1afc7647
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 
 PKG_HOST_ONLY:=1
 HOST_BUILD_DEPENDS:= \

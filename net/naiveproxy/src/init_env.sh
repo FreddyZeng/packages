@@ -54,13 +54,13 @@ treat_warnings_as_errors=false
 is_cronet_build=true
 chrome_pgo_phase=2
 
-enable_base_tracing=false
 use_udev=false
 use_aura=false
 use_ozone=false
 use_gio=false
 use_platform_icu_alternatives=true
 use_glib=false
+is_perfetto_embedder=true
 
 disable_file_support=true
 enable_websockets=false
@@ -73,12 +73,12 @@ include_transport_security_state_preload_list=false
 enable_device_bound_sessions=false
 enable_bracketed_proxy_uris=true
 enable_quic_proxy_support=true
+enable_disk_cache_sql_backend=false
 
 use_nss_certs=false
 
 enable_backup_ref_ptr_support=false
 enable_dangling_raw_ptr_checks=false
-enable_shadow_metadata=false
 
 target_os=\"openwrt\"
 target_cpu=\"${naive_arch}\"
@@ -108,7 +108,6 @@ case "${target_arch}" in
 	[ -n "${cpu_type}" ] && naive_flags+=" arm_cpu=\"${cpu_type}\""
 	;;
 "mipsel"|"mips64el")
-	naive_flags+=" use_thin_lto=false chrome_pgo_phase=0"
 	if [ -z "${cpu_type}" ] || [ "${cpu_type}" == "mips32" ]; then
 		naive_flags+=" mips_arch_variant=\"r1\""
 	else

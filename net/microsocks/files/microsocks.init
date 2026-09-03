@@ -36,6 +36,9 @@ start_service() {
 	[ "$_auth_once" -eq "0" ] || procd_append_param command -1
 	[ "$_quiet" -eq "0" ] || procd_append_param command -q
 
+	procd_set_param user microsocks
+	procd_set_param group microsocks
+
 	procd_set_param limits core="unlimited"
 	procd_set_param limits nofile="1000000 1000000"
 	procd_set_param respawn
@@ -59,14 +62,6 @@ start_service() {
 	}
 
 	procd_close_instance
-}
-
-service_started() {
-	procd_set_config_changed firewall
-}
-
-service_stopped() {
-	procd_set_config_changed firewall
 }
 
 service_triggers() {

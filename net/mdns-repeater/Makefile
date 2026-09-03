@@ -8,11 +8,11 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=mdns-repeater
 PKG_RELEASE:=2
 
-PKG_SOURCE_URL:=https://github.com/kennylevinsen/mdns-repeater.git
+PKG_SOURCE_URL:=https://github.com/geekman/mdns-repeater.git
 PKG_SOURCE_PROTO=git
-PKG_SOURCE_DATE:=2020-05-03
-PKG_SOURCE_VERSION:=921d8850e988d0bd8d60899d933c4ad3094d73ca
-PKG_MIRROR_HASH:=19997460a7eb9816b0c13328ce02331fac532dab549d602e35d671d5f481bfee
+PKG_SOURCE_DATE:=2023-12-16
+PKG_SOURCE_VERSION:=f714ec4d8a0eee248ead29c2ae1bb37f124a568f
+PKG_MIRROR_HASH:=ccc76784483550bcbe3b65f2efee39372516c2cf5d18ef58636cf2661139c4b8
 
 PKG_MAINTAINER:=Alexander Koenig <alex@lisas.de>
 PKG_LICENSE:=GPL-2.0-or-later
@@ -25,14 +25,13 @@ define Package/mdns-repeater
   CATEGORY:=Network
   TITLE:=Multicast DNS repeater for Linux
   SUBMENU:=IP Addresses and Names
-  URL:=https://github.com/kennylevinsen/mdns-repeater
+  URL:=https://github.com/geekman/mdns-repeater
 endef
 
-TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
-
-define Build/Compile
-	CFLAGS="$(TARGET_CFLAGS)" CPPFLAGS="$(TARGET_CPPFLAGS)" $(MAKE) -C $(PKG_BUILD_DIR) $(TARGET_CONFIGURE_OPTS)
-endef
+MAKE_FLAGS += \
+	HGVERSION='dummy' \
+	CFLAGS='$(TARGET_CFLAGS) $(TARGET_CPPFLAGS) -DHGVERSION="\"$(VERSION)\""' \
+	LDFLAGS='$(TARGET_LDFLAGS)'
 
 define Package/mdns-repeater/install
 	$(INSTALL_DIR) $(1)/usr/sbin
